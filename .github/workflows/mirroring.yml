@@ -1,9 +1,7 @@
 
 name: Mirror Release Branch to TeneoProtocolAI Repo
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: 
 
 jobs:
   mirror-to-test-repo:
