@@ -11,6 +11,7 @@ Build autonomous agents for the Teneo Network in Go. This SDK handles WebSocket 
 - **Command Agents**: Build agents that respond to specific commands and tasks
 - **Custom Agents**: Implement any logic you want - API integrations, data processing, blockchain interactions
 
+
 The SDK provides production-ready networking, authentication with Ethereum wallets, automatic reconnection, and built-in health endpoints.
 
 ## Requirements
