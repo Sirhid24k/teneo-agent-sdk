@@ -43,6 +43,10 @@ type MessageSender interface {
 	SendMessageAsMD(content string) error
 	// SendMessageAsArray sends array/list data
 	SendMessageAsArray(content []interface{}) error
+	// SendErrorMessage sends an error message to the user without triggering a transaction
+	SendErrorMessage(content string, errorCode string, details map[string]interface{}) error
+	// TriggerWalletTx requests the user to sign a wallet transaction
+	TriggerWalletTx(tx TxRequest, description string, optional bool) error
 }
 
 // StreamingTaskHandler is an optional interface for agents that need to send multiple messages during task execution
