@@ -123,6 +123,7 @@ func (s *TaskMessageSender) TriggerWalletTx(tx types.TxRequest, description stri
 		Room:          s.room,
 		DataRoom:      s.room,
 		MessageRoomId: s.room,
+		Content:       description,
 		TaskID:        s.taskID,
 		Data:          dataBytes,
 		Timestamp:     time.Now(),
