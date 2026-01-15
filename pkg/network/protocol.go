@@ -452,6 +452,11 @@ func (p *ProtocolHandler) GetCapabilities() []string {
 	return p.capabilities
 }
 
+// GetWalletAddress returns the wallet address
+func (p *ProtocolHandler) GetWalletAddress() string {
+	return p.walletAddr
+}
+
 // SendRegistration sends agent registration with NFT token ID
 func (p *ProtocolHandler) SendRegistration() error {
 	log.Printf("🐛 DEBUG: About to create registration with challenge: %s", p.lastChallenge)

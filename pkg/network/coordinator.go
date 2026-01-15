@@ -65,6 +65,73 @@ func (s *TaskMessageSender) SendMessageAsArray(content []interface{}) error {
 	return s.sendStandardizedMessage(types.StandardMessageTypeArray, content)
 }
 
+// SendErrorMessage sends an error message to the user without triggering a transaction
+func (s *TaskMessageSender) SendErrorMessage(content string, errorCode string, details map[string]interface{}) error {
+	errorData := types.AgentErrorData{
+		TaskID:    s.taskID,
+		ErrorCode: errorCode,
+		Details:   details,
+	}
+
+	dataBytes, err := json.Marshal(errorData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal error data: %w", err)
+	}
+
+	msg := &types.Message{
+		Type:          types.MessageTypeAgentError,
+		From:          s.protocolHandler.GetWalletAddress(),
+		Room:          s.room,
+		DataRoom:      s.room,
+		MessageRoomId: s.room,
+		Content:       content,
+		TaskID:        s.taskID,
+		Data:          dataBytes,
+		Timestamp:     time.Now(),
+	}
+
+	return s.protocolHandler.client.SendMessage(msg)
+}
+
+// TriggerWalletTx requests the user to sign a wallet transaction
+func (s *TaskMessageSender) TriggerWalletTx(tx types.TxRequest, description string, optional bool) error {
+	if tx.To == "" {
+		return fmt.Errorf("tx.To is required")
+	}
+	if tx.ChainId == 0 {
+		return fmt.Errorf("tx.ChainId is required")
+	}
+	if description == "" {
+		return fmt.Errorf("description is required")
+	}
+
+	txData := types.TriggerWalletTxData{
+		TaskID:      s.taskID,
+		Tx:          tx,
+		Description: description,
+		Optional:    optional,
+	}
+
+	dataBytes, err := json.Marshal(txData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal tx data: %w", err)
+	}
+
+	msg := &types.Message{
+		Type:          types.MessageTypeTriggerWalletTx,
+		From:          s.protocolHandler.GetWalletAddress(),
+		Room:          s.room,
+		DataRoom:      s.room,
+		MessageRoomId: s.room,
+		Content:       description,
+		TaskID:        s.taskID,
+		Data:          dataBytes,
+		Timestamp:     time.Now(),
+	}
+
+	return s.protocolHandler.client.SendMessage(msg)
+}
+
 // sendStandardizedMessage sends a message in standardized format
 func (s *TaskMessageSender) sendStandardizedMessage(msgType string, content interface{}) error {
 	return s.protocolHandler.SendTaskResponseToRoom(s.taskID, content.(string), msgType, true, "", s.room)

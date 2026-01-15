@@ -579,6 +579,197 @@ if !acquired {
 
 ## Advanced Features
 
+### Error Messages & Wallet Transactions
+
+The SDK provides advanced messaging capabilities for agents to communicate errors and trigger user wallet transactions.
+
+#### SendErrorMessage
+
+Send structured error messages to users with error codes and detailed information:
+
+```go
+// Send an error with code and details
+err := sender.SendErrorMessage(
+    "Insufficient balance to complete this operation",  // Human-readable message
+    "INSUFFICIENT_BALANCE",                              // Error code
+    map[string]interface{}{                              // Additional details
+        "required": "100",
+        "available": "50",
+        "token": "USDC",
+    },
+)
+```
+
+**Use Cases:**
+- Report processing failures with structured error codes
+- Provide actionable error details to users
+- Enable client-side error handling based on error codes
+
+**Wire Format:**
+```json
+{
+  "type": "agent_error",
+  "from": "0xAgentWallet",
+  "room": "room-id",
+  "content": "Insufficient balance to complete this operation",
+  "data": {
+    "task_id": "task-123",
+    "error_code": "INSUFFICIENT_BALANCE",
+    "details": {"required": "100", "available": "50", "token": "USDC"}
+  }
+}
+```
+
+#### TriggerWalletTx
+
+Request users to sign and execute a wallet transaction:
+
+```go
+import "github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/types"
+
+// Request user to sign a transaction
+err := sender.TriggerWalletTx(
+    types.TxRequest{
+        To:      "0xContractAddress",           // Required: Target contract
+        Value:   "1000000000000000000",         // Optional: ETH value in wei
+        Data:    "0xa9059cbb...",               // Optional: Calldata
+        ChainId: 3338,                          // Required: Chain ID (3338 = PEAQ)
+    },
+    "Mint your NFT reward",                     // Required: Description shown to user
+    false,                                       // Optional: If true, user can skip
+)
+```
+
+**Use Cases:**
+- Mint NFTs for users who complete tasks
+- Request token approvals or transfers
+- Execute smart contract interactions on behalf of users
+- Trigger on-chain rewards or achievements
+
+**Wire Format:**
+```json
+{
+  "type": "trigger_wallet_tx",
+  "from": "0xAgentWallet",
+  "room": "room-id",
+  "content": "Mint your NFT reward",
+  "data": {
+    "task_id": "task-123",
+    "tx": {
+      "to": "0xContractAddress",
+      "value": "1000000000000000000",
+      "data": "0xa9059cbb...",
+      "chainId": 3338
+    },
+    "description": "Mint your NFT reward",
+    "optional": false
+  }
+}
+```
+
+**Transaction Result:**
+
+When the user responds to a `trigger_wallet_tx`, you receive a `tx_result`:
+
+```json
+{
+  "type": "tx_result",
+  "from": "0xUserWallet",
+  "data": {
+    "task_id": "task-123",
+    "tx_hash": "0x...",
+    "status": "confirmed",
+    "error": null
+  }
+}
+```
+
+Status values: `confirmed` | `rejected` | `failed`
+
+#### Types Reference
+
+```go
+// TxRequest represents a transaction for the user to sign
+type TxRequest struct {
+    To      string `json:"to"`               // Target address (required)
+    Value   string `json:"value,omitempty"`  // ETH value in wei
+    Data    string `json:"data,omitempty"`   // Contract calldata
+    ChainId int    `json:"chainId"`          // Chain ID (required)
+}
+
+// AgentErrorData is the payload for agent_error messages
+type AgentErrorData struct {
+    TaskID    string                 `json:"task_id"`
+    ErrorCode string                 `json:"error_code,omitempty"`
+    Details   map[string]interface{} `json:"details,omitempty"`
+}
+
+// TriggerWalletTxData is the payload for trigger_wallet_tx messages
+type TriggerWalletTxData struct {
+    TaskID      string    `json:"task_id"`
+    Tx          TxRequest `json:"tx"`
+    Description string    `json:"description"`
+    Optional    bool      `json:"optional"`
+}
+
+// TxResultData is received when user responds to trigger_wallet_tx
+type TxResultData struct {
+    TaskID string `json:"task_id"`
+    TxHash string `json:"tx_hash,omitempty"`
+    Status string `json:"status"`  // confirmed | rejected | failed
+    Error  string `json:"error,omitempty"`
+}
+```
+
+#### Complete Example: NFT Minting Agent
+
+```go
+func (a *NFTMintAgent) ProcessTaskWithStreaming(ctx context.Context, task string, sender types.MessageSender) error {
+    // Check if user earned an NFT
+    earned, err := checkNFTEligibility(task)
+    if err != nil {
+        // Send structured error
+        sender.SendErrorMessage(
+            "Failed to verify eligibility",
+            "ELIGIBILITY_CHECK_FAILED",
+            map[string]interface{}{"reason": err.Error()},
+        )
+        return err
+    }
+
+    if !earned {
+        sender.SendErrorMessage(
+            "You haven't completed the required tasks yet",
+            "NOT_ELIGIBLE",
+            map[string]interface{}{"tasksCompleted": 3, "tasksRequired": 5},
+        )
+        return nil
+    }
+
+    // Build mint transaction calldata
+    mintData := buildMintCalldata(userAddress)
+
+    // Request user to sign the mint transaction
+    err = sender.TriggerWalletTx(
+        types.TxRequest{
+            To:      "0xNFTContractAddress",
+            Data:    mintData,
+            ChainId: 3338, // PEAQ
+        },
+        "Mint your achievement NFT! This NFT proves you completed all tasks.",
+        false, // Required, not optional
+    )
+
+    if err != nil {
+        return fmt.Errorf("failed to trigger mint: %w", err)
+    }
+
+    return sender.SendMessage("Please sign the transaction in your wallet to mint your NFT!")
+}
+```
+
+---
+
 ### Streaming and Multi-Message Tasks
 
 For long-running tasks, send multiple messages as you process:
