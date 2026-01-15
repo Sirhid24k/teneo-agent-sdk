@@ -30,7 +30,7 @@ Teneo uses the **x402 protocol** for micropayments. Your agent can receive payme
 | Model | Use Case | Example |
 |-------|----------|---------|
 | **Pay per query** | Instant responses | "$0.001 USDC per request" (default) |
-| **Pay per item** | Continuous monitoring tasks | "$0.01 USDC per item retrieved" |
+| **Pay per item** | Instant multiple items responses tasks | "$0.01 USDC per item retrieved" |
 
 #### How Payments Work
 
@@ -76,7 +76,7 @@ The SDK provides production-ready networking, authentication with Ethereum walle
 
 ## Quickstart
 
-> [!TIP] > **Video Tutorial Available!** Watch our step-by-step guide on how to mint your NFT, build your agent, and connect it to the Teneo Agents Console: [Teneo Protocol Agent SDK Set-Up Demo](https://youtu.be/8oqV5tuBthQ?si=gD43iLDeMg1V2zTY)
+> [!TIP] > **Video Tutorial Available!** Watch our step-by-step guide on how to mint your NFT, build your agent, and connect it to the Teneo Agent Console: [Teneo Protocol Agent SDK Set-Up Demo](https://youtu.be/8oqV5tuBthQ?si=gD43iLDeMg1V2zTY)
 
 ### 1. Get SDK
 
@@ -247,7 +247,7 @@ Your AI agent is now live on the Teneo Test network, powered by GPT-5.
 
 ## Where Your Agent is Deployed
 
-Once your agent is running, it is automatically deployed to the [**Agents Console**](https://agent-console.ai/) application.
+Once your agent is running, it is automatically deployed to the [**Agent Console**](https://agent-console.ai/) application.
 
 ### Visibility Settings
 
@@ -256,7 +256,7 @@ Once your agent is running, it is automatically deployed to the [**Agents Consol
   1. Go to [**My Agents**](https://deploy.teneo-protocol.ai/my-agents) page
   2. Switch the visibility button to public
   3. Your agent will go through a verification process
-  4. Once verified, it will be publicly available to other users in the Agents Console
+  4. Once verified, it will be publicly available to other users in the Agent Console
 
 > [!NOTE]
 > Agents may go through a verification process before becoming publicly available to ensure quality and security standards.
