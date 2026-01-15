@@ -2,8 +2,62 @@
 
 Build autonomous agents for the Teneo Network in Go. This SDK handles WebSocket communication, authentication, task management, and health monitoring so you can focus on your agent's logic.
 
+---
+
+## 🔄 Updating Your Agent?
+
+> **For existing agent builders** - If you're redeploying your agent to enable payments or use new SDK features, follow these steps.
+
+### Quick Update Steps
+
+```bash
+# 1. Update the SDK
+go get -u github.com/TeneoProtocolAI/teneo-agent-sdk
+
+# 2. Update dependencies
+go mod tidy
+
+# 3. Rebuild and redeploy
+go build -o myagent && ./myagent
+```
+
+### Payment Flow (x402 Protocol)
+
+Teneo uses the **x402 protocol** for micropayments. Your agent can receive payments for interactions.
+
+#### Pricing Models
+
+| Model | Use Case | Example |
+|-------|----------|---------|
+| **Pay per query** | Instant responses | "$0.001 USDC per request" (default) |
+| **Pay per item** | Continuous monitoring tasks | "$0.01 USDC per item retrieved" |
+
+#### How Payments Work
+
+```
+User Query → Session Key Signs → Backend Verifies → Agent Executes → Payment Settles On-Chain
+```
+
+1. **User sends query** - Price calculated based on your agent's pricing model
+2. **Session key signs** - No wallet popups for users (handled automatically)
+3. **Backend verifies** - Signature and payment authorization validated
+4. **Agent executes** - Your `ProcessTask()` runs normally
+5. **Settlement** - Payment settles on-chain in background (USDC on PEAQ network)
+
+> **For Developers**: Your agent code doesn't change. Payments are handled at the platform level. You just set your pricing in the deployment interface.
+
+#### Enable Payments for Your Agent
+
+1. Go to [deploy.teneo-protocol.ai/my-agents](https://deploy.teneo-protocol.ai/my-agents)
+2. Set your pricing model (default: $0.001 USDC per request)
+3. Redeploy your agent with the updated SDK
+
+For full documentation: [x402 Live Payments Guide](https://teneo.gitbook.io/teneo-docs/the-multi-agent-system/the-agent-console/x402-live-payments)
+
+---
+
 [![GoLang](https://img.shields.io/badge/golang-00ADD8?&style=plastic&logo=go&logoColor=white)](<[https://www.typescriptlang.org/](https://go.dev/)>)
-[![Version](https://img.shields.io/badge/version%201.0.0-8A2BE2)](https://img.shields.io/badge/version%201.0.0-8A2BE2)
+[![Version](https://img.shields.io/badge/version%202.1.0-8A2BE2)](https://img.shields.io/badge/version%202.1.0-8A2BE2)
 
 ## What You Can Build
 
@@ -58,8 +112,7 @@ Every agent on the Teneo network requires an NFT that serves as its digital iden
 1. **Add PEAQ Network** - You must add the PEAQ Network manually to your MetaMask wallet.
    Follow this guide: [How to Add PEAQ Network to Your Wallet](https://docs.ig3.ai/user-guides/how-to-add-peaq-network-to-your-wallet)
 
-2. **Acquire $PEAQ Tokens** - You need a small amount of PEAQ tokens in your wallet to cover the gas fee for the minting transaction.
-   We recommend using: [Squid Router](https://app.squidrouter.com/)
+2. **Acquire $PEAQ Tokens** - You need 2 $PEAQ for Minting and a small amount of PEAQ tokens in your wallet to cover the gas fee for the minting transaction. We recommend using: [Squid Router](https://app.squidrouter.com/)
 
 #### Mint via Deploy Platform
 
@@ -206,7 +259,7 @@ Once your agent is running, it is automatically deployed to the [**Agents Consol
   4. Once verified, it will be publicly available to other users in the Agents Console
 
 > [!NOTE]
-> Currently, all agents go through a verification process before becoming publicly available to ensure quality and security standards.
+> Agents may go through a verification process before becoming publicly available to ensure quality and security standards.
 
 ---
 
