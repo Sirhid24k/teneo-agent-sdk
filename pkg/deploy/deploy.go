@@ -35,13 +35,14 @@ type DeployConfig struct {
 	Capabilities json.RawMessage // Agent capabilities array
 	Commands     json.RawMessage // Agent commands (optional)
 	NlpFallback  bool            // Enable NLP fallback
-	Categories   json.RawMessage // Agent categories (optional)
+	Categories      json.RawMessage // Agent categories (optional)
+	MetadataVersion string          // Metadata version (e.g. "2.3.0")
 
 	// State Management
 	StateFilePath string // Path to state file (default: .teneo-deploy-state.json)
 
 	// Advanced Options
-	MintPrice *big.Int // Custom mint price (default: 0.01 ETH)
+	MintPrice *big.Int // Custom mint price (default: 2 PEAQ)
 }
 
 // DeployResult contains the result of a successful deployment
@@ -94,6 +95,10 @@ func NewDeployer(config *DeployConfig) (*Deployer, error) {
 
 	if config.StateFilePath == "" {
 		config.StateFilePath = ".teneo-deploy-state.json"
+	}
+
+	if config.MetadataVersion == "" {
+		config.MetadataVersion = "2.3.0"
 	}
 
 	// Create HTTP client
@@ -222,7 +227,11 @@ func (d *Deployer) fullDeploy(ctx context.Context) (*DeployResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("deploy preparation failed: %w", err)
 	}
-	log.Printf("   ✅ Metadata stored, config hash: %s", deployResp.ConfigHash[:16]+"...")
+	if len(deployResp.ConfigHash) >= 16 {
+		log.Printf("   ✅ Metadata stored, config hash: %s", deployResp.ConfigHash[:16]+"...")
+	} else {
+		log.Printf("   ✅ Metadata stored, config hash: %s", deployResp.ConfigHash)
+	}
 	log.Printf("   ✅ Contract: %s (Chain ID: %s)", deployResp.ContractAddress, deployResp.ChainID)
 
 	// Use RPC URL from backend response, fallback to config/env/default
@@ -377,17 +386,18 @@ func (d *Deployer) authenticate(ctx context.Context) (string, int64, error) {
 // callDeploy calls the deploy endpoint
 func (d *Deployer) callDeploy(ctx context.Context, sessionToken string) (*DeployResponse, error) {
 	req := &DeployRequest{
-		WalletAddress: d.authenticator.GetAddress(),
-		AgentID:       d.config.AgentID,
-		AgentName:     d.config.AgentName,
-		Description:   d.config.Description,
-		Image:         d.config.Image,
-		AgentType:     d.config.AgentType,
-		Capabilities:  d.config.Capabilities,
-		Commands:      d.config.Commands,
-		NlpFallback:   d.config.NlpFallback,
-		Categories:    d.config.Categories,
-		ConfigHash:    d.configHash,
+		WalletAddress:   d.authenticator.GetAddress(),
+		AgentID:         d.config.AgentID,
+		AgentName:       d.config.AgentName,
+		Description:     d.config.Description,
+		Image:           d.config.Image,
+		AgentType:       d.config.AgentType,
+		Capabilities:    d.config.Capabilities,
+		Commands:        d.config.Commands,
+		NlpFallback:     d.config.NlpFallback,
+		Categories:      d.config.Categories,
+		ConfigHash:      d.configHash,
+		MetadataVersion: d.config.MetadataVersion,
 	}
 
 	return d.httpClient.Deploy(sessionToken, req)
@@ -403,11 +413,20 @@ func (d *Deployer) confirmMint(ctx context.Context, sessionToken string, state *
 	}
 	
 	req := &ConfirmMintRequest{
-		AgentID:       state.AgentID,
-		WalletAddress: state.WalletAddress,
-		TokenID:       int64(state.TokenID),
-		TxHash:        state.TxHash,
-		ConfigHash:    d.configHash,
+		AgentID:         state.AgentID,
+		AgentName:       d.config.AgentName,
+		WalletAddress:   state.WalletAddress,
+		TokenID:         int64(state.TokenID),
+		TxHash:          state.TxHash,
+		ConfigHash:      d.configHash,
+		Description:     d.config.Description,
+		Image:           d.config.Image,
+		AgentType:       d.config.AgentType,
+		Capabilities:    d.config.Capabilities,
+		Commands:        d.config.Commands,
+		NlpFallback:     d.config.NlpFallback,
+		Categories:      d.config.Categories,
+		MetadataVersion: d.config.MetadataVersion,
 	}
 
 	return d.httpClient.ConfirmMint(sessionToken, req)

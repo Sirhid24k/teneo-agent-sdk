@@ -1,8 +1,8 @@
 {
-  "name": "Example #2 Agents",
-  "description": "Example social intelligence agent metadata. Demonstrates practical monitoring commands for profile insights, timeline snapshots, mentions, and post statistics.",
-  "image": "ipfs://bafybeiexampleplaceholder2222222222222222222222222222222222222/agent_image_example2.png",
-  "agent_id": "example-2-agents",
+  "name": "Social Intelligence Agent",
+  "agent_id": "social-intel-agent",
+  "description": "Social intelligence agent that monitors profiles, timelines, mentions, and post analytics across social platforms.",
+  "image": "",
   "agent_type": "command",
   "capabilities": [
     {
@@ -25,86 +25,28 @@
   "commands": [
     {
       "trigger": "profile",
-      "argument": "<username>",
       "description": "Returns profile details including account age, verification status, and public counters.",
-      "parameters": [
-        {
-          "name": "username",
-          "type": "username",
-          "required": true
-        }
-      ],
-      "strictArg": true,
-      "minArgs": 1,
-      "maxArgs": 1,
       "pricePerUnit": 0.001,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
     },
     {
       "trigger": "timeline",
-      "argument": "<username> <count>",
       "description": "Fetches recent posts for a username with configurable count.",
-      "parameters": [
-        {
-          "name": "username",
-          "type": "username",
-          "required": true
-        },
-        {
-          "name": "count",
-          "type": "number",
-          "required": true,
-          "minValue": "1",
-          "isBillingCount": true
-        }
-      ],
-      "strictArg": true,
-      "minArgs": 2,
-      "maxArgs": 2,
       "pricePerUnit": 0.0008,
       "priceType": "task-transaction",
       "taskUnit": "per-item"
     },
     {
       "trigger": "mentions",
-      "argument": "<username> <count>",
       "description": "Returns recent mention entries for a username.",
-      "parameters": [
-        {
-          "name": "username",
-          "type": "username",
-          "required": true
-        },
-        {
-          "name": "count",
-          "type": "number",
-          "required": true,
-          "minValue": "1",
-          "isBillingCount": true
-        }
-      ],
-      "strictArg": true,
-      "minArgs": 2,
-      "maxArgs": 2,
       "pricePerUnit": 0.0008,
       "priceType": "task-transaction",
       "taskUnit": "per-item"
     },
     {
       "trigger": "post_stats",
-      "argument": "<post_id_or_url>",
       "description": "Returns detailed engagement metrics for a single post.",
-      "parameters": [
-        {
-          "name": "post_id_or_url",
-          "type": "string",
-          "required": true
-        }
-      ],
-      "strictArg": true,
-      "minArgs": 1,
-      "maxArgs": 1,
       "pricePerUnit": 0.04,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
@@ -112,25 +54,14 @@
     {
       "trigger": "help",
       "description": "Lists all commands and usage examples.",
-      "parameters": [],
-      "strictArg": true,
-      "minArgs": 0,
-      "maxArgs": 0,
       "pricePerUnit": 0,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
     }
   ],
   "nlp_fallback": false,
-  "properties": {
-    "created": "2026-02-13T10:05:00Z",
-    "metadata_version": "2.3.0",
-    "network": "Peaq Network",
-    "refresh_reason": "metadata_update",
-    "version": "1.0.0"
-  },
-  "metadata_version": "2.3.0",
   "categories": [
     "Social Media"
-  ]
+  ],
+  "metadata_version": "2.3.0"
 }

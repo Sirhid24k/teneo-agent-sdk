@@ -117,16 +117,17 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 
 		// Create deploy configuration
 		deployCfg := deploy.DeployConfig{
-			BackendURL:    config.BackendURL,
-			RPCEndpoint:   config.RPCEndpoint,
-			PrivateKey:    config.Config.PrivateKey,
-			AgentID:       agentID,
-			AgentName:     config.Config.Name,
-			Description:   config.Config.Description,
-			Image:         config.Config.Image,
-			AgentType:     "command", // Default to command type
-			Capabilities:  capabilitiesJSON,
-			StateFilePath: config.StateFilePath,
+			BackendURL:      config.BackendURL,
+			RPCEndpoint:     config.RPCEndpoint,
+			PrivateKey:      config.Config.PrivateKey,
+			AgentID:         agentID,
+			AgentName:       config.Config.Name,
+			Description:     config.Config.Description,
+			Image:           config.Config.Image,
+			AgentType:       "command", // Default to command type
+			Capabilities:    capabilitiesJSON,
+			StateFilePath:   config.StateFilePath,
+			MetadataVersion: "2.3.0",
 		}
 
 		// Execute deployment

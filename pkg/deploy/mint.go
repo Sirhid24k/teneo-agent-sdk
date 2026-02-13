@@ -26,16 +26,17 @@ const DefaultMaxJSONSize = 24 * 1024
 
 // AgentConfig represents the agent configuration from JSON file
 type AgentConfig struct {
-	Name         string       `json:"name"`
-	AgentID      string       `json:"agentId"`
-	Description  string       `json:"description"`
-	Image        string       `json:"image,omitempty"`
-	AgentType    string       `json:"agentType"`
-	Categories   []string     `json:"categories"`
-	Capabilities []Capability `json:"capabilities"`
-	Commands     []Command    `json:"commands,omitempty"`
-	NlpFallback  bool         `json:"nlpFallback"`
-	McpManifest  string       `json:"mcpManifest,omitempty"`
+	Name            string       `json:"name"`
+	AgentID         string       `json:"agentId"`
+	Description     string       `json:"description"`
+	Image           string       `json:"image,omitempty"`
+	AgentType       string       `json:"agentType"`
+	Categories      []string     `json:"categories"`
+	Capabilities    []Capability `json:"capabilities"`
+	Commands        []Command    `json:"commands,omitempty"`
+	NlpFallback     bool         `json:"nlpFallback"`
+	McpManifest     string       `json:"mcpManifest,omitempty"`
+	MetadataVersion string       `json:"metadata_version,omitempty"`
 }
 
 // Capability represents an agent capability
@@ -176,7 +177,11 @@ func (m *Minter) MintWithContext(ctx context.Context, jsonPath string) (*MintRes
 
 	// Step 8: Generate config hash
 	configHash := GenerateConfigHash(&config)
-	log.Printf("🔐 Config hash: %s", configHash[:16]+"...")
+	if len(configHash) >= 16 {
+		log.Printf("🔐 Config hash: %s", configHash[:16]+"...")
+	} else {
+		log.Printf("🔐 Config hash: %s", configHash)
+	}
 
 	// Step 9: Proceed to sync
 	schemaVersion := ""
@@ -406,17 +411,18 @@ func (m *Minter) executeMint(ctx context.Context, config *AgentConfig, authentic
 	categoriesJSON, _ := json.Marshal(config.Categories)
 
 	deployReq := &DeployRequest{
-		WalletAddress: authenticator.GetAddress(),
-		AgentID:       config.AgentID,
-		AgentName:     config.Name,
-		Description:   config.Description,
-		Image:         config.Image,
-		AgentType:     config.AgentType,
-		Capabilities:  capabilitiesJSON,
-		Commands:      commandsJSON,
-		NlpFallback:   config.NlpFallback,
-		Categories:    categoriesJSON,
-		ConfigHash:    configHash,
+		WalletAddress:   authenticator.GetAddress(),
+		AgentID:         config.AgentID,
+		AgentName:       config.Name,
+		Description:     config.Description,
+		Image:           config.Image,
+		AgentType:       config.AgentType,
+		Capabilities:    capabilitiesJSON,
+		Commands:        commandsJSON,
+		NlpFallback:     config.NlpFallback,
+		Categories:      categoriesJSON,
+		ConfigHash:      configHash,
+		MetadataVersion: config.MetadataVersion,
 	}
 
 	// Call deploy endpoint
@@ -426,7 +432,11 @@ func (m *Minter) executeMint(ctx context.Context, config *AgentConfig, authentic
 		return nil, fmt.Errorf("deploy failed: %w", err)
 	}
 
-	log.Printf("✅ Deploy prepared, config hash: %s", deployResp.ConfigHash[:16]+"...")
+	if len(deployResp.ConfigHash) >= 16 {
+		log.Printf("✅ Deploy prepared, config hash: %s", deployResp.ConfigHash[:16]+"...")
+	} else {
+		log.Printf("✅ Deploy prepared, config hash: %s", deployResp.ConfigHash)
+	}
 
 	// Use RPC URL from backend response, fallback to config/env/default
 	rpcEndpoint := deployResp.RPCURL
@@ -531,17 +541,18 @@ func (m *Minter) executeUpdate(ctx context.Context, config *AgentConfig, configH
 	categoriesJSON, _ := json.Marshal(config.Categories)
 
 	updateReq := &UpdateMetadataRequest{
-		WalletAddress: authenticator.GetAddress(),
-		AgentID:       config.AgentID,
-		AgentName:     config.Name,
-		Description:   config.Description,
-		Image:         config.Image,
-		AgentType:     config.AgentType,
-		Capabilities:  capabilitiesJSON,
-		Commands:      commandsJSON,
-		NlpFallback:   config.NlpFallback,
-		Categories:    categoriesJSON,
-		ConfigHash:    configHash,
+		WalletAddress:   authenticator.GetAddress(),
+		AgentID:         config.AgentID,
+		AgentName:       config.Name,
+		Description:     config.Description,
+		Image:           config.Image,
+		AgentType:       config.AgentType,
+		Capabilities:    capabilitiesJSON,
+		Commands:        commandsJSON,
+		NlpFallback:     config.NlpFallback,
+		Categories:      categoriesJSON,
+		ConfigHash:      configHash,
+		MetadataVersion: config.MetadataVersion,
 	}
 
 	// 4. Call update endpoint

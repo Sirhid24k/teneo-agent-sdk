@@ -43,18 +43,19 @@ type VerifyResponse struct {
 
 // DeployRequest is the request body for /api/sdk/agent/deploy
 type DeployRequest struct {
-	WalletAddress string                 `json:"wallet_address"`
-	AgentID       string                 `json:"agent_id"`
-	AgentName     string                 `json:"agent_name"`
-	Description   string                 `json:"description"`
-	Image         string                 `json:"image,omitempty"`
-	AgentType     string                 `json:"agent_type"`
-	Capabilities  json.RawMessage        `json:"capabilities"`
-	Commands      json.RawMessage        `json:"commands,omitempty"`
-	NlpFallback   bool                   `json:"nlp_fallback"`
-	Categories    json.RawMessage        `json:"categories,omitempty"`
-	Properties    map[string]interface{} `json:"properties,omitempty"`
-	ConfigHash    string                 `json:"config_hash"`
+	WalletAddress   string                 `json:"wallet_address"`
+	AgentID         string                 `json:"agent_id"`
+	AgentName       string                 `json:"agent_name"`
+	Description     string                 `json:"description"`
+	Image           string                 `json:"image,omitempty"`
+	AgentType       string                 `json:"agent_type"`
+	Capabilities    json.RawMessage        `json:"capabilities"`
+	Commands        json.RawMessage        `json:"commands,omitempty"`
+	NlpFallback     bool                   `json:"nlp_fallback"`
+	Categories      json.RawMessage        `json:"categories,omitempty"`
+	Properties      map[string]interface{} `json:"properties,omitempty"`
+	ConfigHash      string                 `json:"config_hash"`
+	MetadataVersion string                 `json:"metadata_version,omitempty"`
 }
 
 // DeployResponse is the response from /api/sdk/agent/deploy
@@ -69,13 +70,21 @@ type DeployResponse struct {
 }
 
 // ConfirmMintRequest is the request body for /api/sdk/agent/confirm-mint.
-// Simplified: metadata is retrieved from pending_metadata stored at deploy time.
 type ConfirmMintRequest struct {
-	AgentID       string `json:"agent_id"`
-	WalletAddress string `json:"wallet_address"`
-	TokenID       int64  `json:"token_id"`
-	TxHash        string `json:"tx_hash"`
-	ConfigHash    string `json:"config_hash"`
+	AgentID         string          `json:"agent_id"`
+	AgentName       string          `json:"agent_name"`
+	WalletAddress   string          `json:"wallet_address"`
+	TokenID         int64           `json:"token_id"`
+	TxHash          string          `json:"tx_hash"`
+	ConfigHash      string          `json:"config_hash"`
+	Description     string          `json:"description,omitempty"`
+	Image           string          `json:"image,omitempty"`
+	AgentType       string          `json:"agent_type,omitempty"`
+	Capabilities    json.RawMessage `json:"capabilities,omitempty"`
+	Commands        json.RawMessage `json:"commands,omitempty"`
+	NlpFallback     bool            `json:"nlp_fallback"`
+	Categories      json.RawMessage `json:"categories,omitempty"`
+	MetadataVersion string          `json:"metadata_version,omitempty"`
 }
 
 // ConfirmMintResponse is the response from /api/sdk/agent/confirm-mint
@@ -88,17 +97,18 @@ type ConfirmMintResponse struct {
 
 // UpdateMetadataRequest is the request body for POST /api/sdk/agent/update
 type UpdateMetadataRequest struct {
-	WalletAddress string          `json:"wallet_address"`
-	AgentID       string          `json:"agent_id"`
-	AgentName     string          `json:"agent_name"`
-	Description   string          `json:"description"`
-	Image         string          `json:"image,omitempty"`
-	AgentType     string          `json:"agent_type"`
-	Capabilities  json.RawMessage `json:"capabilities"`
-	Commands      json.RawMessage `json:"commands,omitempty"`
-	NlpFallback   bool            `json:"nlp_fallback"`
-	Categories    json.RawMessage `json:"categories,omitempty"`
-	ConfigHash    string          `json:"config_hash"`
+	WalletAddress   string          `json:"wallet_address"`
+	AgentID         string          `json:"agent_id"`
+	AgentName       string          `json:"agent_name"`
+	Description     string          `json:"description"`
+	Image           string          `json:"image,omitempty"`
+	AgentType       string          `json:"agent_type"`
+	Capabilities    json.RawMessage `json:"capabilities"`
+	Commands        json.RawMessage `json:"commands,omitempty"`
+	NlpFallback     bool            `json:"nlp_fallback"`
+	Categories      json.RawMessage `json:"categories,omitempty"`
+	ConfigHash      string          `json:"config_hash"`
+	MetadataVersion string          `json:"metadata_version,omitempty"`
 }
 
 // UpdateMetadataResponse is the response from POST /api/sdk/agent/update

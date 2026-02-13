@@ -1,0 +1,26 @@
+{
+  "name": "Ping Agent",
+  "agent_id": "ping-agent",
+  "description": "Minimal agent example with a single free command. Use this as the simplest possible starting point.",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "ping",
+      "description": "Responds to health check pings."
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "ping",
+      "description": "Returns a pong response to verify the agent is alive.",
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "categories": [
+    "Utilities"
+  ],
+  "metadata_version": "2.3.0"
+}

@@ -109,7 +109,7 @@ func TestGenerateConfigHash(t *testing.T) {
 			},
 		},
 		{
-			name: "description doesnt affect hash",
+			name: "description affects hash",
 			config: &AgentConfig{
 				AgentID:      "test",
 				Name:         "Test",
@@ -118,7 +118,7 @@ func TestGenerateConfigHash(t *testing.T) {
 				Capabilities: []Capability{{Name: "cap"}},
 				Categories:   []string{"AI"},
 			},
-			wantSame: true,
+			wantSame: false,
 			config2: &AgentConfig{
 				AgentID:      "test",
 				Name:         "Test",

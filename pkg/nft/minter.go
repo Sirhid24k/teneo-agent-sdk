@@ -80,16 +80,17 @@ type MintOrResumeResult struct {
 }
 
 type sdkAgentPayload struct {
-	Name         string                 `json:"name"`
-	AgentID      string                 `json:"agent_id"`
-	Description  string                 `json:"description"`
-	Image        string                 `json:"image,omitempty"`
-	AgentType    string                 `json:"agent_type"`
-	Capabilities json.RawMessage        `json:"capabilities"`
-	Commands     json.RawMessage        `json:"commands,omitempty"`
-	NlpFallback  bool                   `json:"nlp_fallback"`
-	Categories   json.RawMessage        `json:"categories,omitempty"`
-	Properties   map[string]interface{} `json:"properties,omitempty"`
+	Name            string                 `json:"name"`
+	AgentID         string                 `json:"agent_id"`
+	Description     string                 `json:"description"`
+	Image           string                 `json:"image,omitempty"`
+	AgentType       string                 `json:"agent_type"`
+	Capabilities    json.RawMessage        `json:"capabilities"`
+	Commands        json.RawMessage        `json:"commands,omitempty"`
+	NlpFallback     bool                   `json:"nlp_fallback"`
+	Categories      json.RawMessage        `json:"categories,omitempty"`
+	Properties      map[string]interface{} `json:"properties,omitempty"`
+	MetadataVersion string                 `json:"metadata_version,omitempty"`
 }
 
 type sdkChallengeResponse struct {
@@ -364,6 +365,9 @@ func (m *NFTMinter) parsePayloadAndHash(rawJSON []byte) (*sdkAgentPayload, []byt
 	if len(config.Categories) == 0 {
 		return nil, nil, "", fmt.Errorf("metadata json missing required field: categories")
 	}
+	if config.MetadataVersion == "" {
+		config.MetadataVersion = "2.3.0"
+	}
 
 	var canonical interface{}
 	if err := json.Unmarshal(rawJSON, &canonical); err != nil {
@@ -453,18 +457,19 @@ func (m *NFTMinter) signSDKChallenge(challenge string) (string, error) {
 
 func (m *NFTMinter) callSDKDeploy(sessionToken string, config *sdkAgentPayload, configHash string) (*sdkDeployResponse, error) {
 	req := map[string]interface{}{
-		"wallet_address": m.address.Hex(),
-		"agent_id":       config.AgentID,
-		"agent_name":     config.Name,
-		"description":    config.Description,
-		"image":          config.Image,
-		"agent_type":     config.AgentType,
-		"capabilities":   json.RawMessage(config.Capabilities),
-		"commands":       json.RawMessage(config.Commands),
-		"nlp_fallback":   config.NlpFallback,
-		"categories":     json.RawMessage(config.Categories),
-		"properties":     config.Properties,
-		"config_hash":    configHash,
+		"wallet_address":   m.address.Hex(),
+		"agent_id":         config.AgentID,
+		"agent_name":       config.Name,
+		"description":      config.Description,
+		"image":            config.Image,
+		"agent_type":       config.AgentType,
+		"capabilities":     json.RawMessage(config.Capabilities),
+		"commands":         json.RawMessage(config.Commands),
+		"nlp_fallback":     config.NlpFallback,
+		"categories":       json.RawMessage(config.Categories),
+		"properties":       config.Properties,
+		"config_hash":      configHash,
+		"metadata_version": config.MetadataVersion,
 	}
 	headers := map[string]string{"X-SDK-Session-Token": sessionToken}
 	var resp sdkDeployResponse
@@ -479,17 +484,18 @@ func (m *NFTMinter) callSDKDeploy(sessionToken string, config *sdkAgentPayload, 
 
 func (m *NFTMinter) callSDKUpdate(sessionToken string, config *sdkAgentPayload, configHash string) (*sdkUpdateResponse, error) {
 	req := map[string]interface{}{
-		"wallet_address": m.address.Hex(),
-		"agent_id":       config.AgentID,
-		"agent_name":     config.Name,
-		"description":    config.Description,
-		"image":          config.Image,
-		"agent_type":     config.AgentType,
-		"capabilities":   json.RawMessage(config.Capabilities),
-		"commands":       json.RawMessage(config.Commands),
-		"nlp_fallback":   config.NlpFallback,
-		"categories":     json.RawMessage(config.Categories),
-		"config_hash":    configHash,
+		"wallet_address":   m.address.Hex(),
+		"agent_id":         config.AgentID,
+		"agent_name":       config.Name,
+		"description":      config.Description,
+		"image":            config.Image,
+		"agent_type":       config.AgentType,
+		"capabilities":     json.RawMessage(config.Capabilities),
+		"commands":         json.RawMessage(config.Commands),
+		"nlp_fallback":     config.NlpFallback,
+		"categories":       json.RawMessage(config.Categories),
+		"config_hash":      configHash,
+		"metadata_version": config.MetadataVersion,
 	}
 	headers := map[string]string{"X-SDK-Session-Token": sessionToken}
 	var resp sdkUpdateResponse
@@ -525,6 +531,7 @@ func (m *NFTMinter) callSDKConfirmMint(
 		"nft_contract_address": contractAddress,
 		"categories":           json.RawMessage(config.Categories),
 		"config_hash":          configHash,
+		"metadata_version":     config.MetadataVersion,
 	}
 	headers := map[string]string{"X-SDK-Session-Token": sessionToken}
 	var resp map[string]interface{}

@@ -224,28 +224,23 @@ if err := openaiAgent.Run(); err != nil {
 
 ## Headless Minting Metadata (JSON)
 
-For headless minting with `nft.NewNFTMinter(...).MintOrResumeFromJSONFile(...)`, use the snake_case metadata format.
-
-Note: `deploy.NewMinter(...).Mint(...)` uses a camelCase schema (`agentId`, `agentType`, `nlpFallback`). Keep the JSON format consistent with the minter you use.
+For headless minting with `nft.NewNFTMinter(...).MintOrResumeFromJSONFile(...)`, use the following metadata format.
 
 ### Required fields
 
 - `name` (min 3 chars)
-- `agent_id` (lowercase letters, numbers, hyphens only)
+- `agent_id` (lowercase letters, numbers, hyphens only, max 64 chars, globally unique)
 - `description` (min 10 chars)
 - `agent_type` (`command`, `nlp`, or `mcp`)
-- `capabilities` (at least 1 item)
+- `capabilities` (array of `{name, description}` objects, min 1, max 50)
 - `categories` (at least 1 item, max 2)
-
-`agent_id` must be globally unique for your agent identity and should use only lowercase letters (`a-z`), numbers (`0-9`), and `-` as a separator.
+- `metadata_version` (currently `"2.3.0"`)
 
 ### Optional fields
 
-- `image`
-- `commands`
-- `nlp_fallback`
-- `metadata_version`
-- `properties`
+- `image` — URL, IPFS URI, or base64
+- `commands` — array of command objects (max 100)
+- `nlp_fallback` — enables fallback NLP handling
 
 ### Minimal valid metadata
 
@@ -257,20 +252,27 @@ Note: `deploy.NewMinter(...).Mint(...)` uses a camelCase schema (`agentId`, `age
   "agent_type": "command",
   "capabilities": [
     {
-      "name": "example_capability"
+      "name": "example_capability",
+      "description": "What this capability does"
     }
   ],
   "categories": [
     "Utilities"
-  ]
+  ],
+  "metadata_version": "2.3.0"
 }
 ```
 
 ### Full examples
 
-- `agent-json-examples/headless-agent-template.json`
-- `agent-json-examples/example-1-agent.json`
-- `agent-json-examples/example-2-agents.json`
+See [`agent-json-examples/README.md`](agent-json-examples/README.md) for the complete list.
+
+- `agent-json-examples/headless-agent-template.json` — minimal template
+- `agent-json-examples/example-1-agent.json` — command-based location agent
+- `agent-json-examples/example-2-agents.json` — command-based social agent
+- `agent-json-examples/example-3-nlp-agent.json` — NLP research agent
+- `agent-json-examples/example-4-mcp-agent.json` — MCP blockchain agent
+- `agent-json-examples/example-5-minimal-agent.json` — absolute minimum agent
 
 ### Headless mint call example
 

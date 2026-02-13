@@ -1,7 +1,7 @@
 {
-  "name": "Example Command Agent",
-  "agent_id": "example-command-agent",
-  "description": "Example metadata template for headless minting with command-based workflows.",
+  "name": "My Agent Name",
+  "agent_id": "my-agent-name",
+  "description": "A clear description of what this agent does (minimum 10 characters).",
   "image": "",
   "agent_type": "command",
   "capabilities": [
@@ -13,7 +13,6 @@
   "commands": [
     {
       "trigger": "example_command",
-      "argument": "[argument]",
       "description": "Description of what this command does",
       "pricePerUnit": 0.001,
       "priceType": "task-transaction",
@@ -24,23 +23,5 @@
   "categories": [
     "Utilities"
   ],
-  "metadata_version": "2.3.0",
-  "_template_info": {
-    "version": "2.3.0",
-    "instructions": {
-      "name": "Required: Agent display name (min 3 characters)",
-      "agent_id": "Required: Unique identifier (lowercase, numbers, hyphens only)",
-      "description": "Required: Agent functionality description (min 10 characters)",
-      "image": "Optional: Image URL, IPFS URI, or base64 data",
-      "agent_type": "Required: command | nlp | mcp",
-      "capabilities": "Required: Array of capability objects (min 1 required)",
-      "commands": "Optional: Array of command objects for user interaction",
-      "pricePerUnit": "Optional: Price in USDC (e.g. 0.001 = $0.001)",
-      "priceType": "Optional: task-transaction or time-based-task",
-      "taskUnit": "Optional: For task-transaction, usually per-query or per-item",
-      "timeUnit": "Optional: For time-based-task: second, minute, or hour",
-      "nlp_fallback": "Optional: Enables fallback NLP handling for unsupported command inputs",
-      "categories": "Required: At least 1 category, max 2"
-    }
-  }
+  "metadata_version": "2.3.0"
 }

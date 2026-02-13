@@ -154,9 +154,23 @@ func (c *ChainClient) GetTokenID(ctx context.Context) (uint64, error) {
 
 // ExecuteMint executes the on-chain mint transaction
 func (c *ChainClient) ExecuteMint(ctx context.Context, signature string, mintPrice *big.Int) (*MintResult, error) {
-	// Default mint price: 0.01 ETH
+	// Query mint price from contract if not provided
 	if mintPrice == nil {
-		mintPrice = big.NewInt(10000000000000000) // 0.01 ETH in wei
+		var err error
+		mintPrice, err = c.GetMintPrice(ctx)
+		if err != nil {
+			// Fallback to 2 PEAQ if contract call fails
+			mintPrice = new(big.Int).Mul(big.NewInt(2), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
+		}
+	}
+
+	// Check wallet balance
+	balance, err := c.client.BalanceAt(ctx, c.address, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check balance: %w", err)
+	}
+	if balance.Cmp(mintPrice) < 0 {
+		return nil, fmt.Errorf("insufficient balance: have %s wei, need %s wei for mint", balance.String(), mintPrice.String())
 	}
 
 	// ABI for mint(address to, bytes signature)
@@ -189,8 +203,17 @@ func (c *ChainClient) ExecuteMint(ctx context.Context, signature string, mintPri
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
 
-	// Estimate gas (with safety margin)
-	gasLimit := uint64(300000)
+	// Estimate gas (also validates the tx won't revert)
+	estimatedGas, err := c.client.EstimateGas(ctx, ethereum.CallMsg{
+		From:  c.address,
+		To:    &c.contractAddress,
+		Value: mintPrice,
+		Data:  data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("mint would revert: %w", err)
+	}
+	gasLimit := estimatedGas * 120 / 100 // 20% safety margin
 
 	// Create transaction
 	tx := types.NewTransaction(
@@ -277,6 +300,34 @@ func (c *ChainClient) extractTokenIDFromReceipt(receipt *types.Receipt, contract
 	}
 
 	return 0, fmt.Errorf("Minted event not found in receipt")
+}
+
+// GetMintPrice queries the mintPrice from the contract
+func (c *ChainClient) GetMintPrice(ctx context.Context) (*big.Int, error) {
+	mintPriceABI, err := abi.JSON(strings.NewReader(`[{"inputs":[],"name":"mintPrice","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse mintPrice ABI: %w", err)
+	}
+
+	data, err := mintPriceABI.Pack("mintPrice")
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack mintPrice call: %w", err)
+	}
+
+	result, err := c.client.CallContract(ctx, ethereum.CallMsg{
+		To:   &c.contractAddress,
+		Data: data,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call mintPrice: %w", err)
+	}
+
+	var price *big.Int
+	if err := mintPriceABI.UnpackIntoInterface(&price, "mintPrice", result); err != nil {
+		return nil, fmt.Errorf("failed to unpack mintPrice result: %w", err)
+	}
+
+	return price, nil
 }
 
 // GetAddress returns the wallet address
