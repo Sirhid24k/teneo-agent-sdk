@@ -11,15 +11,18 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum"
 )
 
 // AgentMetadata represents the metadata for an agent NFT
@@ -34,7 +37,7 @@ type AgentMetadata struct {
 
 // IPFSUploadResponse represents the response from IPFS upload
 type IPFSUploadResponse struct {
-	Success bool   `json:"success"`
+	Success  bool   `json:"success"`
 	IpfsHash string `json:"ipfsHash"`
 	PinSize  int64  `json:"pinSize"`
 	Error    string `json:"error,omitempty"`
@@ -45,6 +48,7 @@ type MintSignatureRequest struct {
 	To       string `json:"to"`
 	TokenURI string `json:"tokenURI"`
 	Nonce    uint64 `json:"nonce"`
+	AgentID  string `json:"agent_id"`
 }
 
 // MintSignatureResponse represents the response with mint signature
@@ -58,6 +62,69 @@ type ContractConfigResponse struct {
 	ContractAddress string `json:"contract_address"`
 	ChainID         string `json:"chain_id"`
 	NetworkName     string `json:"network_name"`
+}
+
+const (
+	mintStatusSynced         = "SYNCED"
+	mintStatusMintRequired   = "MINT_REQUIRED"
+	mintStatusResumeMint     = "RESUME_MINT"
+	mintStatusUpdateRequired = "UPDATE_REQUIRED"
+)
+
+// MintOrResumeResult represents idempotent mint outcome.
+type MintOrResumeResult struct {
+	Status      string `json:"status"`
+	TokenID     uint64 `json:"token_id"`
+	MetadataURI string `json:"metadata_uri,omitempty"`
+	TxHash      string `json:"tx_hash,omitempty"`
+}
+
+type sdkAgentPayload struct {
+	Name         string                 `json:"name"`
+	AgentID      string                 `json:"agent_id"`
+	Description  string                 `json:"description"`
+	Image        string                 `json:"image,omitempty"`
+	AgentType    string                 `json:"agent_type"`
+	Capabilities json.RawMessage        `json:"capabilities"`
+	Commands     json.RawMessage        `json:"commands,omitempty"`
+	NlpFallback  bool                   `json:"nlp_fallback"`
+	Categories   json.RawMessage        `json:"categories,omitempty"`
+	Properties   map[string]interface{} `json:"properties,omitempty"`
+}
+
+type sdkChallengeResponse struct {
+	Challenge string `json:"challenge"`
+}
+
+type sdkVerifyResponse struct {
+	SessionToken string `json:"session_token"`
+}
+
+type sdkSyncResponse struct {
+	Status          string `json:"status"`
+	TokenID         *int64 `json:"token_id,omitempty"`
+	ContractAddress string `json:"contract_address,omitempty"`
+	AgentID         string `json:"agent_id,omitempty"`
+	CurrentHash     string `json:"current_hash,omitempty"`
+	NewHash         string `json:"new_hash,omitempty"`
+	Message         string `json:"message,omitempty"`
+}
+
+type sdkDeployResponse struct {
+	Signature       string `json:"signature"`
+	Nonce           uint64 `json:"nonce"`
+	ContractAddress string `json:"contract_address"`
+	ChainID         string `json:"chain_id"`
+	IpfsHash        string `json:"ipfs_hash"`
+	MetadataURI     string `json:"metadata_uri"`
+	AgentID         string `json:"agent_id"`
+}
+
+type sdkUpdateResponse struct {
+	Success     bool   `json:"success"`
+	MetadataURI string `json:"metadata_uri,omitempty"`
+	TxHash      string `json:"tx_hash,omitempty"`
+	Message     string `json:"message,omitempty"`
 }
 
 // NFTMinter handles NFT minting operations
@@ -122,7 +189,7 @@ func (m *NFTMinter) MintAgent(metadata AgentMetadata) (uint64, error) {
 	// Set contract address
 	m.contractAddress = common.HexToAddress(config.ContractAddress)
 	fmt.Printf("   ✅ Contract address: %s\n", config.ContractAddress)
-	
+
 	// Set chain ID
 	chainID, ok := new(big.Int).SetString(config.ChainID, 10)
 	if !ok {
@@ -150,7 +217,7 @@ func (m *NFTMinter) MintAgent(metadata AgentMetadata) (uint64, error) {
 
 	fmt.Println("\n   [Step 4/5] 🔐 Requesting mint signature...")
 	// 4. Request mint signature from backend (passing wallet address + IPFS URI + nonce)
-	signature, err := m.requestMintSignature(m.address.Hex(), ipfsHash, nonce)
+	signature, err := m.requestMintSignature(m.address.Hex(), metadata.AgentID, ipfsHash, nonce)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get mint signature: %w", err)
 	}
@@ -165,11 +232,362 @@ func (m *NFTMinter) MintAgent(metadata AgentMetadata) (uint64, error) {
 	return tokenID, nil
 }
 
+// MintAgentFromJSONFile mints a new agent NFT from a JSON metadata file.
+func (m *NFTMinter) MintAgentFromJSONFile(path string) (uint64, error) {
+	fileBytes, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read metadata file: %w", err)
+	}
+	result, err := m.MintOrResumeFromJSON(fileBytes)
+	if err != nil {
+		return 0, err
+	}
+	return result.TokenID, nil
+}
+
+// MintAgentFromJSON mints a new agent NFT from raw JSON metadata.
+// This path is compatible with the backend template schema used by /api/ipfs/upload-metadata.
+func (m *NFTMinter) MintAgentFromJSON(rawJSON []byte) (uint64, error) {
+	result, err := m.MintOrResumeFromJSON(rawJSON)
+	if err != nil {
+		return 0, err
+	}
+	return result.TokenID, nil
+}
+
+// MintOrResumeFromJSONFile executes idempotent mint-or-login flow from file.
+func (m *NFTMinter) MintOrResumeFromJSONFile(path string) (*MintOrResumeResult, error) {
+	fileBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read metadata file: %w", err)
+	}
+	return m.MintOrResumeFromJSON(fileBytes)
+}
+
+// MintOrResumeFromJSON executes idempotent mint flow using SDK sync/deploy/update endpoints.
+func (m *NFTMinter) MintOrResumeFromJSON(rawJSON []byte) (*MintOrResumeResult, error) {
+	if !json.Valid(rawJSON) {
+		return nil, fmt.Errorf("invalid metadata json")
+	}
+
+	config, canonicalJSON, configHash, err := m.parsePayloadAndHash(rawJSON)
+	if err != nil {
+		return nil, err
+	}
+	_ = canonicalJSON
+
+	fmt.Println("   [Step 1/4] 🔍 Syncing mint state...")
+	syncResp, err := m.syncAgentState(config.AgentID, configHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sync agent state: %w", err)
+	}
+
+	if syncResp.TokenID != nil && *syncResp.TokenID > 0 && syncResp.Status == mintStatusSynced {
+		fmt.Printf("   ✅ Already minted, token id: %d\n", *syncResp.TokenID)
+		return &MintOrResumeResult{
+			Status:  syncResp.Status,
+			TokenID: uint64(*syncResp.TokenID),
+		}, nil
+	}
+
+	fmt.Println("   [Step 2/4] 🔐 Authenticating SDK session...")
+	sessionToken, err := m.authenticateSDKSession()
+	if err != nil {
+		return nil, fmt.Errorf("failed to authenticate sdk session: %w", err)
+	}
+
+	if syncResp.Status == mintStatusUpdateRequired {
+		fmt.Println("   [Step 3/4] ♻️  Updating metadata/tokenURI...")
+		updateResp, updateErr := m.callSDKUpdate(sessionToken, config, configHash)
+		if updateErr != nil {
+			return nil, fmt.Errorf("failed to update metadata: %w", updateErr)
+		}
+		if syncResp.TokenID == nil || *syncResp.TokenID <= 0 {
+			return nil, fmt.Errorf("update response missing existing token id")
+		}
+		return &MintOrResumeResult{
+			Status:      syncResp.Status,
+			TokenID:     uint64(*syncResp.TokenID),
+			MetadataURI: updateResp.MetadataURI,
+			TxHash:      updateResp.TxHash,
+		}, nil
+	}
+
+	if syncResp.Status != mintStatusMintRequired && syncResp.Status != mintStatusResumeMint {
+		return nil, fmt.Errorf("unsupported sync status: %s", syncResp.Status)
+	}
+
+	fmt.Println("   [Step 3/4] 📦 Preparing deploy + mint tx...")
+	deployResp, err := m.callSDKDeploy(sessionToken, config, configHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare deploy: %w", err)
+	}
+	m.contractAddress = common.HexToAddress(deployResp.ContractAddress)
+	chainID, ok := new(big.Int).SetString(deployResp.ChainID, 10)
+	if !ok {
+		return nil, fmt.Errorf("invalid chain ID from deploy response: %s", deployResp.ChainID)
+	}
+	m.chainID = chainID
+	tokenID, txHash, err := m.executeMintWithTxHash(deployResp.Signature)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute mint: %w", err)
+	}
+
+	fmt.Println("   [Step 4/4] 🧾 Confirming mint in backend...")
+	if err := m.callSDKConfirmMint(sessionToken, config, configHash, deployResp.MetadataURI, tokenID, txHash, deployResp.ContractAddress); err != nil {
+		return nil, fmt.Errorf("failed to confirm mint in backend: %w", err)
+	}
+
+	return &MintOrResumeResult{
+		Status:      syncResp.Status,
+		TokenID:     tokenID,
+		MetadataURI: deployResp.MetadataURI,
+		TxHash:      txHash,
+	}, nil
+}
+
+func (m *NFTMinter) parsePayloadAndHash(rawJSON []byte) (*sdkAgentPayload, []byte, string, error) {
+	var config sdkAgentPayload
+	if err := json.Unmarshal(rawJSON, &config); err != nil {
+		return nil, nil, "", fmt.Errorf("failed to parse metadata json: %w", err)
+	}
+	config.AgentID = strings.TrimSpace(config.AgentID)
+	config.Name = strings.TrimSpace(config.Name)
+	config.Description = strings.TrimSpace(config.Description)
+	config.AgentType = strings.TrimSpace(config.AgentType)
+	if config.AgentID == "" || config.Name == "" || config.Description == "" || config.AgentType == "" {
+		return nil, nil, "", fmt.Errorf("metadata json missing required fields: agent_id, name, description, agent_type")
+	}
+	if len(config.Capabilities) == 0 {
+		return nil, nil, "", fmt.Errorf("metadata json missing required field: capabilities")
+	}
+	if len(config.Categories) == 0 {
+		return nil, nil, "", fmt.Errorf("metadata json missing required field: categories")
+	}
+
+	var canonical interface{}
+	if err := json.Unmarshal(rawJSON, &canonical); err != nil {
+		return nil, nil, "", fmt.Errorf("failed to parse canonical metadata json: %w", err)
+	}
+	canonicalJSON, err := json.Marshal(canonical)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to canonicalize metadata json: %w", err)
+	}
+	hash := sha256.Sum256(canonicalJSON)
+	return &config, canonicalJSON, hex.EncodeToString(hash[:]), nil
+}
+
+func (m *NFTMinter) syncAgentState(agentID, configHash string) (*sdkSyncResponse, error) {
+	challenge, err := m.requestSDKChallenge()
+	if err != nil {
+		return nil, err
+	}
+	signature, err := m.signSDKChallenge(challenge)
+	if err != nil {
+		return nil, err
+	}
+
+	req := map[string]interface{}{
+		"wallet":      m.address.Hex(),
+		"agent_id":    agentID,
+		"config_hash": configHash,
+		"challenge":   challenge,
+		"signature":   signature,
+	}
+	var resp sdkSyncResponse
+	if err := m.postJSON("/api/sdk/agent/sync", req, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (m *NFTMinter) authenticateSDKSession() (string, error) {
+	challenge, err := m.requestSDKChallenge()
+	if err != nil {
+		return "", err
+	}
+	signature, err := m.signSDKChallenge(challenge)
+	if err != nil {
+		return "", err
+	}
+
+	req := map[string]string{
+		"wallet_address": m.address.Hex(),
+		"challenge":      challenge,
+		"signature":      signature,
+	}
+	var resp sdkVerifyResponse
+	if err := m.postJSON("/api/sdk/auth/verify", req, nil, &resp); err != nil {
+		return "", err
+	}
+	if resp.SessionToken == "" {
+		return "", fmt.Errorf("empty sdk session token")
+	}
+	return resp.SessionToken, nil
+}
+
+func (m *NFTMinter) requestSDKChallenge() (string, error) {
+	req := map[string]string{"wallet_address": m.address.Hex()}
+	var resp sdkChallengeResponse
+	if err := m.postJSON("/api/sdk/auth/challenge", req, nil, &resp); err != nil {
+		return "", err
+	}
+	if resp.Challenge == "" {
+		return "", fmt.Errorf("empty sdk challenge")
+	}
+	return resp.Challenge, nil
+}
+
+func (m *NFTMinter) signSDKChallenge(challenge string) (string, error) {
+	message := "Teneo SDK auth: " + challenge
+	hash := accounts.TextHash([]byte(message))
+	sig, err := crypto.Sign(hash, m.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign sdk challenge: %w", err)
+	}
+	if sig[64] < 27 {
+		sig[64] += 27
+	}
+	return hexutil.Encode(sig), nil
+}
+
+func (m *NFTMinter) callSDKDeploy(sessionToken string, config *sdkAgentPayload, configHash string) (*sdkDeployResponse, error) {
+	req := map[string]interface{}{
+		"wallet_address": m.address.Hex(),
+		"agent_id":       config.AgentID,
+		"agent_name":     config.Name,
+		"description":    config.Description,
+		"image":          config.Image,
+		"agent_type":     config.AgentType,
+		"capabilities":   json.RawMessage(config.Capabilities),
+		"commands":       json.RawMessage(config.Commands),
+		"nlp_fallback":   config.NlpFallback,
+		"categories":     json.RawMessage(config.Categories),
+		"properties":     config.Properties,
+		"config_hash":    configHash,
+	}
+	headers := map[string]string{"X-SDK-Session-Token": sessionToken}
+	var resp sdkDeployResponse
+	if err := m.postJSON("/api/sdk/agent/deploy", req, headers, &resp); err != nil {
+		return nil, err
+	}
+	if resp.Signature == "" {
+		return nil, fmt.Errorf("deploy response missing signature")
+	}
+	return &resp, nil
+}
+
+func (m *NFTMinter) callSDKUpdate(sessionToken string, config *sdkAgentPayload, configHash string) (*sdkUpdateResponse, error) {
+	req := map[string]interface{}{
+		"wallet_address": m.address.Hex(),
+		"agent_id":       config.AgentID,
+		"agent_name":     config.Name,
+		"description":    config.Description,
+		"image":          config.Image,
+		"agent_type":     config.AgentType,
+		"capabilities":   json.RawMessage(config.Capabilities),
+		"commands":       json.RawMessage(config.Commands),
+		"nlp_fallback":   config.NlpFallback,
+		"categories":     json.RawMessage(config.Categories),
+		"config_hash":    configHash,
+	}
+	headers := map[string]string{"X-SDK-Session-Token": sessionToken}
+	var resp sdkUpdateResponse
+	if err := m.postJSON("/api/sdk/agent/update", req, headers, &resp); err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("sdk update failed: %s", resp.Message)
+	}
+	return &resp, nil
+}
+
+func (m *NFTMinter) callSDKConfirmMint(
+	sessionToken string,
+	config *sdkAgentPayload,
+	configHash, metadataURI string,
+	tokenID uint64,
+	txHash, contractAddress string,
+) error {
+	req := map[string]interface{}{
+		"agent_id":             config.AgentID,
+		"agent_name":           config.Name,
+		"wallet_address":       m.address.Hex(),
+		"token_id":             tokenID,
+		"tx_hash":              txHash,
+		"metadata_uri":         metadataURI,
+		"description":          config.Description,
+		"image_url":            config.Image,
+		"agent_type":           config.AgentType,
+		"nlp_fallback":         config.NlpFallback,
+		"capabilities":         json.RawMessage(config.Capabilities),
+		"commands":             json.RawMessage(config.Commands),
+		"nft_contract_address": contractAddress,
+		"categories":           json.RawMessage(config.Categories),
+		"config_hash":          configHash,
+	}
+	headers := map[string]string{"X-SDK-Session-Token": sessionToken}
+	var resp map[string]interface{}
+	return m.postJSON("/api/sdk/agent/confirm-mint", req, headers, &resp)
+}
+
+func (m *NFTMinter) postJSON(path string, payload interface{}, headers map[string]string, out interface{}) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	url := strings.TrimRight(m.backendURL, "/") + path
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("backend returned status %d: %s", resp.StatusCode, extractErrorMessage(respBody))
+	}
+
+	if out == nil {
+		return nil
+	}
+	if err := json.Unmarshal(respBody, out); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+	return nil
+}
+
+func extractErrorMessage(body []byte) string {
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(body, &parsed); err == nil {
+		if msg, ok := parsed["message"].(string); ok && msg != "" {
+			return msg
+		}
+		if errMsg, ok := parsed["error"].(string); ok && errMsg != "" {
+			return errMsg
+		}
+	}
+	return string(body)
+}
+
 // uploadMetadataToIPFS sends agent metadata to backend which handles IPFS upload
 func (m *NFTMinter) uploadMetadataToIPFS(metadata AgentMetadata) (string, error) {
 	// The backend handles the actual IPFS upload via Pinata
 	// We just send the metadata to the backend endpoint
-	
+
 	// Prepare request body with agent metadata
 	body, err := json.Marshal(metadata)
 	if err != nil {
@@ -212,14 +630,66 @@ func (m *NFTMinter) uploadMetadataToIPFS(metadata AgentMetadata) (string, error)
 	return fmt.Sprintf("ipfs://%s", uploadResp.IpfsHash), nil
 }
 
+// uploadRawMetadataToIPFS uploads raw JSON metadata to backend endpoint.
+func (m *NFTMinter) uploadRawMetadataToIPFS(rawJSON []byte) (string, error) {
+	backendURL := strings.TrimRight(m.backendURL, "/")
+	req, err := http.NewRequest("POST", backendURL+"/api/ipfs/upload-metadata", bytes.NewBuffer(rawJSON))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request to backend: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read backend response: %w", err)
+	}
+
+	var generic map[string]interface{}
+	if err := json.Unmarshal(respBody, &generic); err != nil {
+		return "", fmt.Errorf("failed to parse backend response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if errMsg, ok := generic["error"].(string); ok && errMsg != "" {
+			return "", fmt.Errorf("backend upload failed: %s", errMsg)
+		}
+		return "", fmt.Errorf("backend upload failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	if success, ok := generic["success"].(bool); !ok || !success {
+		if errMsg, ok := generic["error"].(string); ok && errMsg != "" {
+			return "", fmt.Errorf("backend upload failed: %s", errMsg)
+		}
+		return "", fmt.Errorf("backend upload failed")
+	}
+
+	if ipfsURL, ok := generic["ipfs_url"].(string); ok && ipfsURL != "" {
+		return ipfsURL, nil
+	}
+	if ipfsHash, ok := generic["ipfs_hash"].(string); ok && ipfsHash != "" {
+		return fmt.Sprintf("ipfs://%s", ipfsHash), nil
+	}
+	if ipfsHash, ok := generic["ipfsHash"].(string); ok && ipfsHash != "" {
+		return fmt.Sprintf("ipfs://%s", ipfsHash), nil
+	}
+
+	return "", fmt.Errorf("backend upload succeeded but no ipfs uri/hash returned")
+}
+
 // getContractConfig gets the contract configuration from backend
 func (m *NFTMinter) getContractConfig() (*ContractConfigResponse, error) {
 	// Ensure backend URL doesn't have trailing slash
 	backendURL := strings.TrimRight(m.backendURL, "/")
 	endpoint := backendURL + "/api/contract/config"
-	
+
 	fmt.Printf("   📡 Fetching contract config from: %s\n", endpoint)
-	
+
 	// Create request
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -307,16 +777,17 @@ func (m *NFTMinter) getNonce(address common.Address) (uint64, error) {
 }
 
 // requestMintSignature requests a mint signature from the backend
-func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint64) (string, error) {
+func (m *NFTMinter) requestMintSignature(to, agentID string, tokenURI string, nonce uint64) (string, error) {
 	// Show progress
 	fmt.Printf("   📝 Requesting mint signature from backend...\n")
-	
+
 	// Prepare request
 	// Note: tokenURI is not used in signature generation but sent for compatibility
 	reqBody := MintSignatureRequest{
 		To:       to,
 		TokenURI: "", // Empty as per backend expectation
 		Nonce:    nonce,
+		AgentID:  agentID,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -328,10 +799,10 @@ func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint6
 	// Ensure backend URL doesn't have trailing slash
 	backendURL := strings.TrimRight(m.backendURL, "/")
 	endpoint := backendURL + "/api/signature/generate-mint"
-	
+
 	fmt.Printf("   📡 Sending request to: %s\n", endpoint)
-	fmt.Printf("   📦 Request data: to=%s, nonce=%d, tokenURI=\"\" (not used in signature)\n", to, nonce)
-	
+	fmt.Printf("   📦 Request data: to=%s, agentID=%s, nonce=%d, tokenURI=\"\" (not used in signature)\n", to, agentID, nonce)
+
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
@@ -358,7 +829,7 @@ func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint6
 
 	// Log the response status
 	fmt.Printf("   📨 Response status: %d\n", resp.StatusCode)
-	
+
 	// Check if response is HTML (error page)
 	contentType := resp.Header.Get("Content-Type")
 	if strings.Contains(contentType, "text/html") || (len(respBody) > 0 && respBody[0] == '<') {
@@ -366,7 +837,7 @@ func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint6
 		if len(preview) > 500 {
 			preview = preview[:500] + "..."
 		}
-		
+
 		// Try to extract meaningful error from HTML
 		errorMsg := "Backend returned HTML instead of JSON. "
 		if strings.Contains(preview, "404") || strings.Contains(preview, "Not Found") {
@@ -374,13 +845,13 @@ func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint6
 		} else if strings.Contains(preview, "502") || strings.Contains(preview, "Bad Gateway") {
 			errorMsg += "The backend server may be down or unreachable. "
 		}
-		
+
 		fmt.Printf("   ❌ Error: %s\n", errorMsg)
 		fmt.Printf("   📄 HTML Response preview:\n%s\n", preview)
-		
+
 		return "", fmt.Errorf("%sPlease check the backend URL configuration", errorMsg)
 	}
-	
+
 	// Don't log raw response as it contains sensitive signature data
 
 	// Parse response
@@ -393,7 +864,7 @@ func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint6
 				return "", fmt.Errorf("backend error: %s", string(respBody))
 			}
 		}
-		
+
 		// Include part of the response in error for debugging
 		preview := string(respBody)
 		if len(preview) > 200 {
@@ -406,7 +877,7 @@ func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint6
 	if sigResp.Signature == "" {
 		return "", fmt.Errorf("backend returned empty signature")
 	}
-	
+
 	fmt.Printf("   ✅ Received signature successfully\n")
 	fmt.Printf("   ✅ Nonce confirmed: %d\n", sigResp.Nonce)
 	return sigResp.Signature, nil
@@ -414,38 +885,46 @@ func (m *NFTMinter) requestMintSignature(to string, tokenURI string, nonce uint6
 
 // executeMint executes the mint transaction on the blockchain
 func (m *NFTMinter) executeMint(signature string) (uint64, error) {
+	tokenID, _, err := m.executeMintWithTxHash(signature)
+	if err != nil {
+		return 0, err
+	}
+	return tokenID, nil
+}
+
+func (m *NFTMinter) executeMintWithTxHash(signature string) (uint64, string, error) {
 	if m.client == nil {
-		return 0, fmt.Errorf("ethereum client not initialized")
+		return 0, "", fmt.Errorf("ethereum client not initialized")
 	}
 
 	// Parse the contract ABI
 	contractABI, err := ParseABI()
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse ABI: %w", err)
+		return 0, "", fmt.Errorf("failed to parse ABI: %w", err)
 	}
 
 	// Decode signature from hex
 	sigBytes, err := hex.DecodeString(strings.TrimPrefix(signature, "0x"))
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode signature: %w", err)
+		return 0, "", fmt.Errorf("failed to decode signature: %w", err)
 	}
 
 	// Pack the mint method call
 	data, err := contractABI.Pack("mint", m.address, sigBytes)
 	if err != nil {
-		return 0, fmt.Errorf("failed to pack mint call: %w", err)
+		return 0, "", fmt.Errorf("failed to pack mint call: %w", err)
 	}
 
 	// Get the current gas price
 	gasPrice, err := m.client.SuggestGasPrice(context.Background())
 	if err != nil {
-		return 0, fmt.Errorf("failed to get gas price: %w", err)
+		return 0, "", fmt.Errorf("failed to get gas price: %w", err)
 	}
 
 	// Get the nonce for the transaction
 	nonce, err := m.client.PendingNonceAt(context.Background(), m.address)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get account nonce: %w", err)
+		return 0, "", fmt.Errorf("failed to get account nonce: %w", err)
 	}
 
 	// Create the transaction
@@ -461,21 +940,22 @@ func (m *NFTMinter) executeMint(signature string) (uint64, error) {
 	// Sign the transaction
 	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(m.chainID), m.privateKey)
 	if err != nil {
-		return 0, fmt.Errorf("failed to sign transaction: %w", err)
+		return 0, "", fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
 	// Send the transaction
 	err = m.client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to send transaction: %w", err)
+		return 0, "", fmt.Errorf("failed to send transaction: %w", err)
 	}
 
 	fmt.Printf("Mint transaction sent: %s\n", signedTx.Hash().Hex())
+	txHash := signedTx.Hash().Hex()
 
 	// Wait for transaction receipt
 	receipt, err := m.WaitForTransaction(context.Background(), signedTx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to wait for transaction: %w", err)
+		return 0, txHash, fmt.Errorf("failed to wait for transaction: %w", err)
 	}
 
 	// Extract token ID from logs
@@ -487,13 +967,13 @@ func (m *NFTMinter) executeMint(signature string) (uint64, error) {
 			if log.Topics[0] == transferEventSig {
 				// Token ID is in the third topic
 				tokenID := new(big.Int).SetBytes(log.Topics[3].Bytes())
-				return tokenID.Uint64(), nil
+				return tokenID.Uint64(), txHash, nil
 			}
 		}
 	}
 
 	// If we couldn't find the token ID in logs, return an error
-	return 0, fmt.Errorf("could not extract token ID from transaction logs")
+	return 0, txHash, fmt.Errorf("could not extract token ID from transaction logs")
 }
 
 // GenerateMetadataHash generates a SHA256 hash of agent metadata
@@ -504,7 +984,7 @@ func GenerateMetadataHash(metadata AgentMetadata) string {
 		metadata.Description,
 		metadata.Image,
 		strings.Join(metadata.Capabilities, ","))
-	
+
 	// Generate SHA256 hash
 	hash := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(hash[:])
@@ -514,7 +994,7 @@ func GenerateMetadataHash(metadata AgentMetadata) string {
 func (m *NFTMinter) SendMetadataHashToBackend(hash string, tokenID uint64, walletAddress string) error {
 	// TODO: Implement backend endpoint for metadata hash submission
 	// This would send the hash along with the token ID to verify ownership
-	
+
 	reqBody := map[string]interface{}{
 		"hash":          hash,
 		"tokenId":       tokenID,
@@ -529,7 +1009,7 @@ func (m *NFTMinter) SendMetadataHashToBackend(hash string, tokenID uint64, walle
 	// For now, we'll just log this operation
 	// In production, this would make an actual HTTP request
 	fmt.Printf("Would send metadata hash: %s for token ID: %d\n", hash, tokenID)
-	
+
 	return nil
 }
 

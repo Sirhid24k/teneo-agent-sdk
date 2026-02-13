@@ -88,6 +88,7 @@ type AuthMessage struct {
 	UserType   string `json:"userType"`
 	AgentName  string `json:"agentName,omitempty"`
 	NFTTokenID string `json:"nft_token_id,omitempty"`
+	SDKVersion string `json:"sdk_version,omitempty"`
 	Timestamp  int64  `json:"timestamp"`
 }
 

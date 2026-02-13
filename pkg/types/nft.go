@@ -218,11 +218,12 @@ type NFTConfig struct {
 	ConfirmationBlocks int    `json:"confirmation_blocks"`
 }
 
-// DefaultNFTConfig returns a default NFT configuration for PEAQ mainnet
+// DefaultNFTConfig returns a default NFT configuration for PEAQ mainnet.
+// FoundationSigner is a placeholder; production config is provided by the backend.
 func DefaultNFTConfig() *NFTConfig {
 	return &NFTConfig{
 		ContractAddress:    "0x2257A3993419b295EC062bC59C22c8A4EAA358A1",
-		FoundationSigner:   "0xE0E039D10D6CEa83C7DAedb179B0Cfc75e0B0E66",
+		FoundationSigner:   "0x0000000000000000000000000000000000000000",
 		ChainID:            3338,
 		GasLimit:           500000,
 		GasPrice:           "20000000000", // 20 gwei
