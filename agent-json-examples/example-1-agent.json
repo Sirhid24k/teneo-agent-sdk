@@ -1,0 +1,117 @@
+{
+  "name": "Example #1 Agent",
+  "description": "Example location intelligence agent metadata. Demonstrates realistic command-based capabilities for place discovery, place summaries, and review extraction workflows.",
+  "image": "ipfs://bafybeiexampleplaceholder1111111111111111111111111111111111111/agent_image_example1.png",
+  "agent_id": "example-1-agent",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "location/place_search",
+      "description": "Searches places by keyword and optional city filter with structured result output."
+    },
+    {
+      "name": "location/place_summary",
+      "description": "Returns normalized place summary data such as rating, category, address, and opening status."
+    },
+    {
+      "name": "location/review_sampling",
+      "description": "Extracts representative review snippets for quick qualitative analysis."
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "search_places",
+      "argument": "<query> [city] [count]",
+      "description": "Searches places by query with optional city and count parameters.",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "city",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "required": false,
+          "isBillingCount": true
+        }
+      ],
+      "strictArg": false,
+      "minArgs": 1,
+      "maxArgs": 3,
+      "pricePerUnit": 0.0015,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "place_summary",
+      "argument": "<place_url_or_id>",
+      "description": "Fetches a detailed summary for a single place.",
+      "parameters": [
+        {
+          "name": "place_url_or_id",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "pricePerUnit": 0.02,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "top_reviews",
+      "argument": "<place_url_or_id> [count]",
+      "description": "Returns top or most relevant reviews for a place.",
+      "parameters": [
+        {
+          "name": "place_url_or_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "required": false,
+          "isBillingCount": true
+        }
+      ],
+      "strictArg": false,
+      "minArgs": 1,
+      "maxArgs": 2,
+      "pricePerUnit": 0.002,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "help",
+      "description": "Lists all commands, required inputs, and output format notes.",
+      "parameters": [],
+      "strictArg": true,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "properties": {
+    "created": "2026-02-13T10:00:00Z",
+    "metadata_version": "2.3.0",
+    "network": "Peaq Network",
+    "refresh_reason": "metadata_update",
+    "version": "1.0.0"
+  },
+  "metadata_version": "2.3.0",
+  "categories": [
+    "Travel"
+  ]
+}
