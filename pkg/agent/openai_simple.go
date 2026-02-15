@@ -141,7 +141,7 @@ Remember: You should answer all user questions. Do not refuse to answer based on
 	if config.WebSocketURL == "" {
 		config.WebSocketURL = os.Getenv("WEBSOCKET_URL")
 		if config.WebSocketURL == "" {
-			config.WebSocketURL = "wss://dev-rooms-websocket-ai-core-o9fmb.ondigitalocean.app/ws" // Default Teneo endpoint
+			config.WebSocketURL = "wss://backend.developer.chatroom.teneo-protocol.ai/ws" // Default Teneo endpoint
 		}
 	}
 

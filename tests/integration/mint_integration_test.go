@@ -15,11 +15,12 @@ import (
 )
 
 // Test configuration - set via environment variables for security:
-//   TEST_BACKEND_URL  - Backend API URL
-//   TEST_PRIVATE_KEY  - Wallet private key (hex)
-//   TEST_RPC_ENDPOINT - Blockchain RPC endpoint
+//
+//	TEST_BACKEND_URL  - Backend API URL
+//	TEST_PRIVATE_KEY  - Wallet private key (hex)
+//	TEST_RPC_ENDPOINT - Blockchain RPC endpoint
 var (
-	testBackendURL  = envOrDefault("TEST_BACKEND_URL", "https://dev-rooms-websocket-ai-core-o9fmb.ondigitalocean.app")
+	testBackendURL  = envOrDefault("TEST_BACKEND_URL", "https://backend.developer.chatroom.teneo-protocol.ai")
 	testPrivateKey  = requiredEnv("TEST_PRIVATE_KEY")
 	testRPCEndpoint = envOrDefault("TEST_RPC_ENDPOINT", "https://peaq.api.onfinality.io/public")
 	testNFTContract = envOrDefault("TEST_NFT_CONTRACT", "0x403D22629EA58CfA5117b9C72953538BCD6D47b5")
@@ -968,8 +969,8 @@ func TestSecurity_LongFieldValues(t *testing.T) {
 		fieldValue  string
 		expectError bool
 	}{
-		{"long_name", "name", longString[:200], true},           // >100 chars
-		{"long_description", "description", longString, true},   // >2000 chars
+		{"long_name", "name", longString[:200], true},            // >100 chars
+		{"long_description", "description", longString, true},    // >2000 chars
 		{"very_long_agentId", "agentId", longString[:100], true}, // >64 chars
 		{"long_capability_name", "capability_name", longString[:200], true},
 	}
