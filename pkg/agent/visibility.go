@@ -15,7 +15,7 @@ import (
 // The agent must have been deployed and connected at least once before visibility can be changed.
 //
 // Parameters:
-//   - backendURL: The Teneo backend URL (e.g. "https://dev-rooms-websocket-ai-core-o9fmb.ondigitalocean.app")
+//   - backendURL: The Teneo backend URL (e.g. "https://backend.developer.chatroom.teneo-protocol.ai")
 //   - agentName: The agent's name as registered (used to derive the agent ID)
 //   - creatorWallet: The Ethereum wallet address that owns the agent's NFT
 //   - public: true to make the agent publicly visible, false to make it private
@@ -23,7 +23,7 @@ import (
 // Example — make an agent public:
 //
 //	err := agent.UpdateAgentVisibility(
-//	    "https://dev-rooms-websocket-ai-core-o9fmb.ondigitalocean.app",
+//	    "https://backend.developer.chatroom.teneo-protocol.ai",
 //	    "Interior Architecture Advisor",
 //	    "0x10aaF658FA638a1A153dD3730236088950Ab7572",
 //	    true,
@@ -32,7 +32,7 @@ import (
 // Example — make an agent private:
 //
 //	err := agent.UpdateAgentVisibility(
-//	    "https://dev-rooms-websocket-ai-core-o9fmb.ondigitalocean.app",
+//	    "https://backend.developer.chatroom.teneo-protocol.ai",
 //	    "Interior Architecture Advisor",
 //	    "0x10aaF658FA638a1A153dD3730236088950Ab7572",
 //	    false,

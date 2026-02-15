@@ -50,7 +50,7 @@ Always be polite, patient, and solution-oriented.`,
 
 		// Optional: Network configuration
 
-		WebSocketURL: "wss://dev-rooms-websocket-ai-core-o9fmb.ondigitalocean.app/ws",
+		WebSocketURL: "wss://backend.developer.chatroom.teneo-protocol.ai/ws",
 		Room:         "support-room",
 	})
 

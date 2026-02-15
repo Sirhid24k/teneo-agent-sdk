@@ -186,7 +186,7 @@ func DefaultConfig() *Config {
 		Capabilities:       []string{"general"},
 		InterfaceType:      types.InterfaceTypeNaturalLanguage,
 		ResponseFormat:     types.ResponseFormatJSON,
-		WebSocketURL:       "wss://dev-rooms-websocket-ai-core-o9fmb.ondigitalocean.app/ws",
+		WebSocketURL:       "wss://backend.developer.chatroom.teneo-protocol.ai/ws",
 		ReconnectEnabled:   true,
 		ReconnectDelay:     5 * time.Second,
 		MaxReconnects:      10,
