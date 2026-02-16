@@ -46,6 +46,9 @@ type SimpleOpenAIAgentConfig struct {
 	// Optional: Mint new NFT (defaults to false)
 	Mint bool
 
+	// Optional: Set agent visibility to public after deploy (defaults to false)
+	Public bool
+
 	// Optional: WebSocket URL (defaults to env WEBSOCKET_URL or standard endpoint)
 	WebSocketURL string
 
@@ -154,12 +157,12 @@ Remember: You should answer all user questions. Do not refuse to answer based on
 				log.Printf("✅ Using existing NFT Token ID: %d", tokenID)
 			} else {
 				// Invalid token ID in env, enable minting
-				log.Printf("⚠️ Invalid NFT_TOKEN_ID in environment, will mint new NFT")
+				log.Printf("⚠️ Invalid NFT_TOKEN_ID in environment, will deploy new NFT")
 				config.Mint = true
 			}
 		} else {
-			// No token ID provided anywhere, enable minting
-			log.Printf("🎨 No NFT_TOKEN_ID found, will mint new NFT")
+			// No token ID provided anywhere, enable deployment
+			log.Printf("🎨 No NFT_TOKEN_ID found, will deploy new NFT")
 			config.Mint = true
 		}
 	} else if config.TokenID > 0 {
@@ -215,15 +218,20 @@ Remember: You should answer all user questions. Do not refuse to answer based on
 	}
 
 	// Create enhanced agent
+	// Use Deploy flow (SDK endpoints) instead of legacy Mint flow
 	enhancedAgent, err := NewEnhancedAgent(&EnhancedAgentConfig{
 		Config:       sdkConfig,
 		AgentHandler: openaiAgent,
-		Mint:         config.Mint,
+		Deploy:       config.Mint,
 		TokenID:      config.TokenID,
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create enhanced agent: %w", err)
+	}
+
+	if config.Public {
+		enhancedAgent.setPublicOnRun = true
 	}
 
 	return enhancedAgent, nil

@@ -1,10 +1,14 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,6 +18,7 @@ import (
 
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/auth"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/cache"
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/deploy"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/health"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/network"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/nft"
@@ -31,6 +36,8 @@ type EnhancedAgent struct {
 	taskCoordinator *network.TaskCoordinator
 	healthServer    *health.Server
 	agentCache      cache.AgentCache
+	backendURL      string
+	setPublicOnRun  bool
 	running         bool
 	startTime       time.Time
 	mu              sync.RWMutex
@@ -43,9 +50,14 @@ type EnhancedAgentConfig struct {
 	Config       *Config
 	AgentHandler types.AgentHandler
 
-	// NFT Minting Options
-	Mint    bool   // If true, mint new NFT; if false, use TokenID
-	TokenID uint64 // Required if Mint is false
+	// NFT Minting Options (choose one: Deploy, Mint, or provide TokenID)
+	Deploy  bool   // If true, use new secure deploy flow with database persistence
+	Mint    bool   // If true, use legacy mint flow (no database persistence)
+	TokenID uint64 // Required if Deploy and Mint are both false
+
+	// Deploy-specific options
+	AgentID       string // Required for Deploy, auto-generated from name if empty
+	StateFilePath string // Path to state file for Deploy (default: .teneo-deploy-state.json)
 
 	// Backend Configuration
 	BackendURL  string // Default from env or "http://localhost:8080"
@@ -54,6 +66,9 @@ type EnhancedAgentConfig struct {
 
 // NewEnhancedAgent creates a new enhanced agent with network capabilities
 func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
+	// Show EULA and deployment rules links at startup
+	printEULALinks()
+
 	if config.Config == nil {
 		return nil, fmt.Errorf("config is required")
 	}
@@ -65,6 +80,12 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 	if config.BackendURL == "" {
 		if backendURL := os.Getenv("BACKEND_URL"); backendURL != "" {
 			config.BackendURL = backendURL
+		} else if config.Config.WebSocketURL != "" {
+			// Derive backend URL from WebSocket URL (strip /ws, wss->https, ws->http)
+			derived := strings.TrimSuffix(config.Config.WebSocketURL, "/ws")
+			derived = strings.Replace(derived, "wss://", "https://", 1)
+			derived = strings.Replace(derived, "ws://", "http://", 1)
+			config.BackendURL = derived
 		} else {
 			config.BackendURL = "http://localhost:8080"
 		}
@@ -77,8 +98,56 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		}
 	}
 
-	// Handle NFT minting or verification
-	if config.Mint {
+	// Handle NFT deployment/minting
+	if config.Deploy {
+		// Use the new secure deploy flow with authentication and database persistence
+		log.Printf("🚀 Deploying agent using secure SDK flow: %s", config.Config.Name)
+
+		// Generate agent ID from name if not provided
+		agentID := config.AgentID
+		if agentID == "" {
+			agentID = generateAgentID(config.Config.Name)
+		}
+
+		// Build capabilities JSON
+		capabilitiesJSON, err := buildCapabilitiesJSON(config.Config.Capabilities)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build capabilities JSON: %w", err)
+		}
+
+		// Create deploy configuration
+		deployCfg := deploy.DeployConfig{
+			BackendURL:      config.BackendURL,
+			RPCEndpoint:     config.RPCEndpoint,
+			PrivateKey:      config.Config.PrivateKey,
+			AgentID:         agentID,
+			AgentName:       config.Config.Name,
+			Description:     config.Config.Description,
+			Image:           config.Config.Image,
+			AgentType:       "command", // Default to command type
+			Capabilities:    capabilitiesJSON,
+			StateFilePath:   config.StateFilePath,
+			MetadataVersion: "2.3.0",
+		}
+
+		// Execute deployment
+		result, err := deploy.DeployAgent(deployCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deploy agent: %w", err)
+		}
+
+		config.TokenID = result.TokenID
+		if result.AlreadyMinted {
+			log.Printf("✅ Agent was already deployed - Token ID: %d", result.TokenID)
+		} else {
+			log.Printf("✅ Successfully deployed agent - Token ID: %d, Tx: %s", result.TokenID, result.TxHash)
+		}
+
+		// Store token ID in environment and config for future use
+		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", result.TokenID))
+		config.Config.NFTTokenID = fmt.Sprintf("%d", result.TokenID)
+	} else if config.Mint {
+		// Use legacy mint flow (no database persistence)
 		// Create NFT minter
 		minter, err := nft.NewNFTMinter(config.BackendURL, config.RPCEndpoint, config.Config.PrivateKey)
 		if err != nil {
@@ -97,7 +166,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			AgentID:      agentID,
 		}
 
-		log.Printf("🎨 Minting NFT for agent: %s", config.Config.Name)
+		log.Printf("🎨 Minting NFT for agent (legacy flow): %s", config.Config.Name)
 
 		// Mint NFT - this will:
 		// 1. Send metadata to backend (backend uploads to IPFS)
@@ -111,14 +180,16 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		config.TokenID = tokenID
 		log.Printf("✅ Successfully minted NFT with token ID: %d", tokenID)
 
-		// Store token ID in environment for future use
+		// Store token ID in environment and config for future use
 		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", tokenID))
+		config.Config.NFTTokenID = fmt.Sprintf("%d", tokenID)
 	} else {
 		// Verify TokenID is set
 		if config.TokenID == 0 {
 			// Try to load from environment
 			if tokenIDStr := os.Getenv("NFT_TOKEN_ID"); tokenIDStr != "" {
-				if tokenID, err := fmt.Sscanf(tokenIDStr, "%d", &config.TokenID); err != nil || tokenID != 1 {
+				// fmt.Sscanf returns count of items parsed (should be 1 for success)
+				if n, err := fmt.Sscanf(tokenIDStr, "%d", &config.TokenID); err != nil || n != 1 {
 					return nil, fmt.Errorf("invalid NFT_TOKEN_ID in environment: %s", tokenIDStr)
 				}
 			} else {
@@ -152,11 +223,20 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		}
 	}
 
+	// Auto-accept EULA if ACCEPT_EULA=true
+	if strings.EqualFold(os.Getenv("ACCEPT_EULA"), "true") {
+		log.Printf("📋 Checking EULA acceptance status...")
+		if err := checkAndAcceptEULA(config.BackendURL, config.Config.PrivateKey); err != nil {
+			return nil, fmt.Errorf("EULA acceptance failed: %w", err)
+		}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	agent := &EnhancedAgent{
 		config:       config.Config,
 		agentHandler: config.AgentHandler,
+		backendURL:   config.BackendURL,
 		ctx:          ctx,
 		cancel:       cancel,
 	}
@@ -392,6 +472,14 @@ func (a *EnhancedAgent) Run() error {
 		return err
 	}
 
+	if a.setPublicOnRun {
+		// Wait briefly for authentication and registration to complete
+		time.Sleep(3 * time.Second)
+		if err := a.SetVisibility(true); err != nil {
+			log.Printf("⚠️ Failed to set agent to public: %v", err)
+		}
+	}
+
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -400,6 +488,47 @@ func (a *EnhancedAgent) Run() error {
 	log.Println("📡 Received interrupt signal")
 
 	return a.Stop()
+}
+
+// SetVisibility updates the agent's public/private visibility on the Teneo network.
+// Requires the agent to have been deployed and connected at least once.
+func (a *EnhancedAgent) SetVisibility(public bool) error {
+	agentID := generateAgentID(a.config.Name)
+	walletAddress := a.authManager.GetAddress()
+
+	reqBody, err := json.Marshal(map[string]interface{}{
+		"is_public":      public,
+		"creator_wallet": walletAddress,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal visibility request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/api/agents/%s/visibility", a.backendURL, agentID)
+	resp, err := http.Post(url, "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("failed to send visibility request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
+			return fmt.Errorf("visibility update failed: %s", errResp.Error)
+		}
+		return fmt.Errorf("visibility update failed with status %d", resp.StatusCode)
+	}
+
+	status := "private"
+	if public {
+		status = "public"
+	}
+	log.Printf("✅ Agent visibility set to %s", status)
+	return nil
 }
 
 // startPeriodicTasks starts periodic maintenance tasks
@@ -576,4 +705,19 @@ func getAddressFromPrivateKey(privateKeyHex string) string {
 
 	address := crypto.PubkeyToAddress(*publicKeyECDSA)
 	return address.Hex()
+}
+
+// buildCapabilitiesJSON converts a capabilities slice to JSON
+func buildCapabilitiesJSON(capabilities []string) ([]byte, error) {
+	// Convert simple string capabilities to capability objects with name
+	type capabilityObj struct {
+		Name string `json:"name"`
+	}
+
+	capObjs := make([]capabilityObj, len(capabilities))
+	for i, cap := range capabilities {
+		capObjs[i] = capabilityObj{Name: cap}
+	}
+
+	return json.Marshal(capObjs)
 }

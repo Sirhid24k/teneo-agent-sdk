@@ -1,0 +1,67 @@
+{
+  "name": "Social Intelligence Agent",
+  "agent_id": "social-intel-agent",
+  "description": "Social intelligence agent that monitors profiles, timelines, mentions, and post analytics across social platforms.",
+  "image": "",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "social/profile_lookup",
+      "description": "Retrieves public profile information with normalized fields."
+    },
+    {
+      "name": "social/timeline_fetch",
+      "description": "Fetches recent posts with engagement metrics and timestamps."
+    },
+    {
+      "name": "social/mention_monitoring",
+      "description": "Collects mention activity for a target account over a requested sample size."
+    },
+    {
+      "name": "social/post_analytics",
+      "description": "Returns detailed metrics for an individual post by ID or URL."
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "profile",
+      "description": "Returns profile details including account age, verification status, and public counters.",
+      "pricePerUnit": 0.001,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "timeline",
+      "description": "Fetches recent posts for a username with configurable count.",
+      "pricePerUnit": 0.0008,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "mentions",
+      "description": "Returns recent mention entries for a username.",
+      "pricePerUnit": 0.0008,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "post_stats",
+      "description": "Returns detailed engagement metrics for a single post.",
+      "pricePerUnit": 0.04,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "help",
+      "description": "Lists all commands and usage examples.",
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "categories": [
+    "Social Media"
+  ],
+  "metadata_version": "2.3.0"
+}

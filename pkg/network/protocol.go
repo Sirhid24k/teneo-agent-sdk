@@ -9,6 +9,7 @@ import (
 
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/auth"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/types"
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/version"
 )
 
 // ProtocolHandler handles the Teneo network protocol
@@ -129,6 +130,7 @@ func (p *ProtocolHandler) Authenticate(challenge string) error {
 		UserType:   "agent",
 		AgentName:  p.agentName,
 		NFTTokenID: p.nftTokenID,
+		SDKVersion: version.Version(),
 	}
 
 	authDataJson, err := json.Marshal(authData)
@@ -136,8 +138,6 @@ func (p *ProtocolHandler) Authenticate(challenge string) error {
 		return fmt.Errorf("failed to marshal auth data: %w", err)
 	}
 
-	// Add debug logging to see what we're actually sending
-	log.Printf("🐛 DEBUG: Auth data being sent: %s", string(authDataJson))
 	log.Printf("🔑 Authenticating with NFT Token ID: %s", p.nftTokenID)
 
 	msg := &types.Message{
@@ -154,16 +154,9 @@ func (p *ProtocolHandler) Authenticate(challenge string) error {
 
 // HandleAuthResponse handles authentication responses
 func (p *ProtocolHandler) HandleAuthResponse(msg *types.Message) error {
-	log.Printf("🐛 DEBUG: Received auth response - Type: %s, Content: %s", msg.Type, msg.Content)
-	if len(msg.Data) > 0 {
-		log.Printf("🐛 DEBUG: Auth response data: %s", string(msg.Data))
-	}
-
 	if strings.Contains(msg.Content, "successful") {
 		p.client.SetAuthenticated(true)
 		log.Printf("✅ Authentication successful! Agent connected to Teneo network")
-		// Send registration message with NFT token ID
-		log.Printf("🐛 DEBUG: About to send registration...")
 		return p.SendRegistration()
 	} else {
 		log.Printf("❌ Authentication failed: %s", msg.Content)
@@ -174,15 +167,8 @@ func (p *ProtocolHandler) HandleAuthResponse(msg *types.Message) error {
 
 // HandleAuthSuccess handles authentication success messages
 func (p *ProtocolHandler) HandleAuthSuccess(msg *types.Message) error {
-	log.Printf("🐛 DEBUG: Received auth success - Type: %s, Content: %s", msg.Type, msg.Content)
-	if len(msg.Data) > 0 {
-		log.Printf("🐛 DEBUG: Auth success data: %s", string(msg.Data))
-	}
-
 	log.Printf("✅ Authentication successful! Agent connected to Teneo network")
 	p.client.SetAuthenticated(true)
-	// Send registration message with NFT token ID
-	log.Printf("🐛 DEBUG: About to send registration...")
 	return p.SendRegistration()
 }
 
@@ -452,12 +438,13 @@ func (p *ProtocolHandler) GetCapabilities() []string {
 	return p.capabilities
 }
 
+// GetWalletAddress returns the wallet address
+func (p *ProtocolHandler) GetWalletAddress() string {
+	return p.walletAddr
+}
+
 // SendRegistration sends agent registration with NFT token ID
 func (p *ProtocolHandler) SendRegistration() error {
-	log.Printf("🐛 DEBUG: About to create registration with challenge: %s", p.lastChallenge)
-	log.Printf("🐛 DEBUG: About to create registration with signature: %s", p.lastChallengeSignature)
-
-	// Create registration message in the new format
 	registrationMsg := &types.RegistrationMessage{
 		UserType:          "agent",
 		NFTTokenID:        p.nftTokenID,
@@ -467,14 +454,10 @@ func (p *ProtocolHandler) SendRegistration() error {
 		Room:              p.room,
 	}
 
-	// Marshal the registration data
 	registrationData, err := json.Marshal(registrationMsg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal registration data: %w", err)
 	}
-
-	// Add debug logging to see what we're actually sending
-	log.Printf("🐛 DEBUG: Registration data being sent: %s", string(registrationData))
 
 	// Create message
 	msg := &types.Message{

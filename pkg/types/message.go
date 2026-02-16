@@ -71,6 +71,11 @@ const (
 	MessageTypeAgents           = "agents"
 	MessageTypeRooms            = "rooms"
 	MessageTypeNick             = "nick"
+
+	// Agent-initiated message types
+	MessageTypeAgentError      = "agent_error"
+	MessageTypeTriggerWalletTx = "trigger_wallet_tx"
+	MessageTypeTxResult        = "tx_result"
 )
 
 // AuthMessage represents an authentication message
@@ -83,6 +88,7 @@ type AuthMessage struct {
 	UserType   string `json:"userType"`
 	AgentName  string `json:"agentName,omitempty"`
 	NFTTokenID string `json:"nft_token_id,omitempty"`
+	SDKVersion string `json:"sdk_version,omitempty"`
 	Timestamp  int64  `json:"timestamp"`
 }
 
@@ -212,3 +218,34 @@ const (
 	EventTypeSystemStatus  = "system_status"
 	EventTypeNetworkUpdate = "network_update"
 )
+
+// TxRequest represents a transaction for the user to sign
+type TxRequest struct {
+	To      string `json:"to"`
+	Value   string `json:"value,omitempty"`
+	Data    string `json:"data,omitempty"`
+	ChainId int    `json:"chainId"`
+}
+
+// AgentErrorData is the payload for agent_error messages
+type AgentErrorData struct {
+	TaskID    string                 `json:"task_id"`
+	ErrorCode string                 `json:"error_code,omitempty"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+}
+
+// TriggerWalletTxData is the payload for trigger_wallet_tx messages
+type TriggerWalletTxData struct {
+	TaskID      string    `json:"task_id"`
+	Tx          TxRequest `json:"tx"`
+	Description string    `json:"description"`
+	Optional    bool      `json:"optional"`
+}
+
+// TxResultData is the payload received when user responds to trigger_mm_tx
+type TxResultData struct {
+	TaskID string `json:"task_id"`
+	TxHash string `json:"tx_hash,omitempty"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}

@@ -1,0 +1,56 @@
+{
+  "name": "Location Intelligence Agent",
+  "agent_id": "location-intel-agent",
+  "description": "Location intelligence agent that provides place discovery, summaries, and review extraction for travel and business research.",
+  "image": "",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "location/place_search",
+      "description": "Searches places by keyword and optional city filter with structured result output."
+    },
+    {
+      "name": "location/place_summary",
+      "description": "Returns normalized place summary data such as rating, category, address, and opening status."
+    },
+    {
+      "name": "location/review_sampling",
+      "description": "Extracts representative review snippets for quick qualitative analysis."
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "search_places",
+      "description": "Searches places by query with optional city and count parameters.",
+      "pricePerUnit": 0.0015,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "place_summary",
+      "description": "Fetches a detailed summary for a single place.",
+      "pricePerUnit": 0.02,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "top_reviews",
+      "description": "Returns top or most relevant reviews for a place.",
+      "pricePerUnit": 0.002,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "help",
+      "description": "Lists all commands, required inputs, and output format notes.",
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "categories": [
+    "Travel"
+  ],
+  "metadata_version": "2.3.0"
+}
